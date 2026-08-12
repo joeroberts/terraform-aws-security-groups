@@ -568,7 +568,11 @@ done < "$sg_wrapper_readmes"
 ```
 
 Prepend the dated HTML notice to every wrapper README. This is an approved bulk
-mechanical rewrite; do not change wrapper prose or HCL inputs.
+mechanical rewrite; do not change wrapper prose or HCL inputs. Preserve exactly
+five source occurrences in every wrapper document: two active Terragrunt
+sources, two commented Git alternatives, and one active Terraform source. All
+five values must use the exact path-derived wrapper target and reserved ref; do
+not delete or rewrite away any legitimate source occurrence.
 
 - [ ] **Step 5: Prove generated HCL and consumer docs are correct**
 
@@ -662,7 +666,15 @@ while IFS=$'\t' read -r sg_document sg_expected_source; do
     README.md) test "$sg_source_line_count" = "2" ;;
     modules/*/README.md) test "$sg_source_line_count" = "1" ;;
     wrappers/README.md|wrappers/*/README.md)
-      test "$sg_source_line_count" = "4"
+      test "$sg_source_line_count" = "5"
+      sg_active_source_lines="$sg_generation_gate/active-source-lines-$sg_checked_document_count"
+      sg_commented_source_lines="$sg_generation_gate/commented-source-lines-$sg_checked_document_count"
+      rg -n '^[[:space:]]+source[[:space:]]*=' "$sg_document" \
+        > "$sg_active_source_lines"
+      rg -n '^[[:space:]]*#[[:space:]]+source[[:space:]]*=' "$sg_document" \
+        > "$sg_commented_source_lines"
+      test "$(wc -l < "$sg_active_source_lines" | tr -d '[:space:]')" = "3"
+      test "$(wc -l < "$sg_commented_source_lines" | tr -d '[:space:]')" = "2"
       ;;
     *) exit 1 ;;
   esac
@@ -695,8 +707,11 @@ Expected: both later HCL manifests remain byte-identical to the retained
 pre-first-apply 212-file manifest. All 108 expected documents are derived from
 their paths and every active/commented `source =` value equals its exact target
 repository, exact root/module/wrapper subdirectory, and exact reserved ref; the
-root README contains both its root and PostgreSQL sources. A correct tag paired
-with a wrong subpath fails.
+root README contains both its root and PostgreSQL sources. Every wrapper retains
+exactly five validated occurrences: three active sources (the two Terragrunt
+examples and the Terraform example) and two commented Git alternatives. A
+missing, additional, wrong-subpath, or upstream source fails even when its ref
+is otherwise correct.
 
 - [ ] **Step 6: Commit and push documentation generation**
 

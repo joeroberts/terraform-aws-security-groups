@@ -1,18 +1,19 @@
 # Security Groups Neutral Derivative — Blocker Resolved
 
-Status: authorization blocker resolved on 2026-08-12; Task 1 source import is
-staged but paused before its commit; review fix round 3 is pending independent
-approval.
+Status: authorization blocker resolved on 2026-08-12; Task 1 is committed and
+pushed; Task 2 documentation changes are preserved uncommitted and paused;
+review fix round 4 is pending independent approval.
 
-The original authorization blocker is resolved. Review fix round 2 of 5 is
-being incorporated for immediate post-first-apply HCL path parity and
-structural workflow permissions/release-guard verification. These review gaps
-were sufficient to begin Task 1. Execution then found that the exact authorized
-`variables.tf` transform preserves a terminal blank which the original cached
-whitespace gate rejected. Round 3 narrows only that `blank-at-eof` diagnostic
-behind same-fence exact byte comparisons. This new review gap is not claimed
-closed until the fix is committed, normally pushed, synchronized, and
-independently reviewed. Source execution remains paused.
+The original authorization blocker and the first three review fixes are
+resolved. Task 2 execution found that every pristine/current wrapper README
+legitimately contains five `source =` occurrences: two active Terragrunt
+sources, two commented Git alternatives, and one active Terraform source. The
+plan correctly requires replacing all five without changing prose or HCL
+inputs, but its gate incorrectly expected four. Round 4 corrects that count to
+five and validates every active/commented occurrence against the exact
+path-derived target and reserved ref. This review gap is not claimed closed
+until the fix is committed, normally pushed, synchronized, and independently
+reviewed. Task 2 execution remains paused.
 
 - Branch: `neutral/v6.0.0-neutral.1`
 - Approved upstream: `terraform-aws-modules/terraform-aws-security-group`, tag
@@ -32,5 +33,6 @@ exact expected/source/target `cmp` checks; fresh archived upstream references;
 root-anchored exclusions; and fail-closed
 worklist, `rg`, `git grep`, history, synchronization, and no-tag gates.
 
-This round-3 resolution changes documentation only and does not alter the staged
-Task 1 source import. No source commit, pull request, tag, or release exists.
+This round-4 resolution changes plan/status documentation only and does not
+alter the preserved uncommitted Task 2 root/template/generated-module README
+changes. No Task 2 commit, pull request, tag, or release exists.
