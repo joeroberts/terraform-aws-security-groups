@@ -18,14 +18,34 @@
 - Preserve Apache 2.0, upstream attribution, provider metadata, 53-entry catalog, generated HCL, and unrelated behavior.
 - Every changed upstream-derived file begins with `Modified by joeroberts/terraform-aws-security-groups on 2026-08-12; see UPSTREAM.md.` in its comment syntax.
 - Root resource creation must depend only on `var.create`; remove the nontechnical variable and wrapper forwarding.
+- The authorized Task 1 upstream-derived delta set is exactly `README.md`,
+  `CHANGELOG.md`, `main.tf`, `variables.tf`, and `wrappers/main.tf`. Delete the
+  complete forbidden bullet at pristine `CHANGELOG.md:194`, and make no other
+  changelog change except its exact first-line notice.
 - Upstream v6.0.0 contains no `*.tftest.hcl`; creation assertions, generator parity, full HCL parity, and 110-root init/validate are the focused behavioral tests.
 - Never import upstream Git history or copy an unsanitized snapshot into the target.
+- Before Task 1 imports source, commit and normally push this authorization
+  amendment without force; require a clean worktree and exact local/remote
+  branch synchronization.
+- Every mutation or release-gating Bash fence is self-contained, begins with
+  `set -euo pipefail`, defines every retained clone/import path it consumes,
+  and uses no process substitution or `$(cat file)` consumer. Negative
+  `rg`/`git grep` gates accept status 1 only and fail on status greater than 1.
+- Create each pristine reference with `git archive` from one exact verified
+  upstream clone. Never copy or otherwise import upstream Git metadata. Task 4
+  creates and verifies its own fresh clone rather than relying on Task 1 state.
+- Root exclusions are root-anchored: exclude `.git` whether it is a file or
+  directory, the exact root `.superpowers/` scratch tree, and the two exact
+  root planning/status documents without hiding nested namesakes.
+- Keep `.superpowers/` ignored and untracked.
 - Push each milestone without force. If blocked, persist and push `docs/neutralization/BLOCKER.md`, open a draft PR when coherent, update the IAM campaign journal, and proceed to RDS.
 
 ## File Map
 
 - Import: complete upstream v6.0.0 working tree except `.git/`.
-- Modify before copy: `main.tf:2`, `variables.tf:140-144`, `wrappers/main.tf:12`, `README.md:5,130,158-162`.
+- Modify before copy: `main.tf:2`, `variables.tf:140-144`,
+  `wrappers/main.tf:12`, `README.md:5,130,158-162`, and
+  `CHANGELOG.md:194` (the complete authorized forbidden bullet).
 - Modify after copy: `generate/templates/README.md.tftpl` — derivative Git source, no Registry version argument, local license, modification notice.
 - Regenerate after template change: all 53 `modules/*/README.md`.
 - Modify mechanically after copy: root `README.md` and all 54 `wrappers/**/README.md` files — derivative identity, sources, notices.
@@ -37,8 +57,14 @@
 
 ### Task 1: Sanitized Root Import
 
+**Required resumption gate:** Commit this plan/status amendment as
+`docs: authorize security groups changelog neutralization` and normally push it
+to `neutral/v6.0.0-neutral.1` without force before running any Task 1 source
+command. Task 1 itself proves that exact documentation-only commit is the clean,
+synchronized branch tip.
+
 **Files:**
-- Modify: `main.tf`, `variables.tf`, `wrappers/main.tf`, `README.md`
+- Modify: `main.tf`, `variables.tf`, `wrappers/main.tf`, `README.md`, `CHANGELOG.md`
 - Create: `UPSTREAM.md`
 - Import: remaining upstream tree
 
@@ -46,92 +72,308 @@
 - Consumes: upstream v6.0.0 and target license-only main
 - Produces: neutral root module controlled solely by `var.create`
 
-- [ ] **Step 1: Verify branch and exact upstream release**
+- [ ] **Step 1: Verify and publish the amendment, then archive one exact upstream clone**
 
 ```bash
+set -euo pipefail
+sg_branch='neutral/v6.0.0-neutral.1'
+sg_expected_sha='58d8e895915f5573767081142d063b7caf7a2b47'
+sg_amendment_parent='aa6e3dcbbd4ded54549f528e238dcbf7027b4f81'
+sg_retained_root="/private/tmp/terraform-aws-security-group-v6.0.0-$sg_expected_sha/task1-$(git rev-parse HEAD)"
+sg_verified_clone="$sg_retained_root/verified-upstream"
+sg_import_root="$sg_retained_root/import"
 test "$(git branch --show-current)" = "neutral/v6.0.0-neutral.1"
 test "$(git remote get-url origin)" = "git@github.com:joeroberts/terraform-aws-security-groups.git"
 test -z "$(git status --porcelain)"
-sg_import_root=$(mktemp -d /private/tmp/terraform-aws-security-group-v6.0.0.XXXXXX)
+test "$(git log -1 --format=%s)" = \
+  "docs: authorize security groups changelog neutralization"
+test "$(git rev-parse HEAD^)" = "$sg_amendment_parent"
+sg_publication_gate=$(mktemp -d /private/tmp/terraform-aws-security-groups-publication.XXXXXX)
+printf '%s\n' \
+  'M docs/superpowers/plans/2026-08-12-security-groups-neutral-derivative.md' \
+  'M docs/superpowers/status/2026-08-12-security-groups-neutral-derivative-blocker.md' \
+  > "$sg_publication_gate/expected-scope"
+git diff-tree --no-commit-id --name-status -r HEAD | sed $'s/\t/ /' | sort \
+  > "$sg_publication_gate/actual-scope"
+diff -u "$sg_publication_gate/expected-scope" \
+  "$sg_publication_gate/actual-scope"
+test -z "$(git ls-files .superpowers)"
+git check-ignore -q \
+  .superpowers/sdd/2026-08-12-security-groups-neutral-derivative/plan-amendment-report.md
+git push origin "HEAD:refs/heads/$sg_branch"
+git fetch origin "$sg_branch"
+test "$(git rev-parse HEAD)" = "$(git rev-parse "origin/$sg_branch")"
+test ! -e "$sg_retained_root"
+mkdir -p "$sg_retained_root"
 git clone --quiet --depth 1 --branch v6.0.0 \
   https://github.com/terraform-aws-modules/terraform-aws-security-group.git \
-  "$sg_import_root/source"
-test "$(git -C "$sg_import_root/source" rev-parse HEAD)" = \
-  "58d8e895915f5573767081142d063b7caf7a2b47"
+  "$sg_verified_clone"
+test "$(git -C "$sg_verified_clone" rev-parse HEAD)" = "$sg_expected_sha"
+test "$(git -C "$sg_verified_clone" rev-parse refs/tags/v6.0.0^{commit})" = \
+  "$sg_expected_sha"
+test -z "$(git -C "$sg_verified_clone" status --porcelain)"
+mkdir -p "$sg_import_root/pristine" "$sg_import_root/source" \
+  "$sg_import_root/expected"
+git -C "$sg_verified_clone" archive --format=tar HEAD | \
+  tar -xf - -C "$sg_import_root/pristine"
+rsync -a "$sg_import_root/pristine/" "$sg_import_root/source/"
+test ! -e "$sg_import_root/pristine/.git"
+test ! -e "$sg_import_root/source/.git"
 ```
+
+Expected: the exact two-document authorization amendment is the clean branch
+tip and is synchronized by a normal push before any source clone occurs. The
+scratch workspace remains ignored/untracked. Exactly one Task 1 upstream clone
+is verified at the recorded tag/SHA; its committed tree is materialized with
+`git archive`, so no upstream history enters either comparison tree.
 
 - [ ] **Step 2: Prove pristine acceptance fails**
 
 ```bash
+set -euo pipefail
+sg_expected_sha='58d8e895915f5573767081142d063b7caf7a2b47'
+sg_retained_root="/private/tmp/terraform-aws-security-group-v6.0.0-$sg_expected_sha/task1-$(git rev-parse HEAD)"
+sg_verified_clone="$sg_retained_root/verified-upstream"
+sg_import_root="$sg_retained_root/import"
 sg_neutral_pattern="$(printf '%s|%s|%s|%s|%s|%s|%s' \
   'put''in' 'khuy''lo' 'ukr''ain' 'russ''ia' 'bela''rus' 'cri''mea' 'don''bas')"
-test -n "$(rg -l -i "$sg_neutral_pattern" "$sg_import_root/source" \
-  --hidden --glob '!.git/**')"
-if rg -n '^  create = var\.create$' "$sg_import_root/source/main.tf"; then exit 1; fi
+sg_pristine_matches="$sg_import_root/expected/pristine-neutral-matches"
+rg -l -i "$sg_neutral_pattern" "$sg_import_root/source" --hidden \
+  > "$sg_pristine_matches"
+test -s "$sg_pristine_matches"
+if rg -n '^  create = var\.create$' "$sg_import_root/source/main.tf"; then
+  exit 1
+else
+  sg_rg_status=$?
+  test "$sg_rg_status" = "1"
+fi
+sed -n '194p' "$sg_import_root/pristine/CHANGELOG.md" \
+  > "$sg_import_root/expected/changelog-authorized-bullet"
+rg -q -i "$sg_neutral_pattern" \
+  "$sg_import_root/expected/changelog-authorized-bullet"
 ```
 
-Expected: forbidden matches exist and the desired direct expression does not.
+Expected: forbidden matches exist, pristine `CHANGELOG.md:194` is one of them,
+and the desired direct expression does not. Any `rg` operational error fails.
 
 - [ ] **Step 3: Apply minimal neutralization before copy**
 
-With `apply_patch` under `$sg_import_root/source`:
+With `apply_patch` under `$sg_import_root/source`, and without running a
+generator:
 
 - Change `main.tf:2` to `create = var.create`.
 - Delete the complete variable block at `variables.tf:140-144`.
 - Delete `wrappers/main.tf:12`.
-- Delete `README.md:5` and final section `README.md:158-162`.
-- Regenerate the root input table, removing pristine row 130:
-
-```bash
-go run github.com/terraform-docs/terraform-docs@v0.24.0 markdown table \
-  --lockfile=false --output-file README.md --output-mode inject \
-  "$sg_import_root/source"
-```
+- Delete exactly pristine `README.md:5`, the deleted-input row at
+  `README.md:130`, and final section `README.md:158-162`.
+- Delete the complete user-authorized bullet at pristine `CHANGELOG.md:194`.
 
 Prepend the dated HCL notice to the three changed `.tf` files and the dated HTML
-notice to `README.md`. Then run:
+notice to both Markdown files. Their exact first lines are:
+
+```text
+# Modified by joeroberts/terraform-aws-security-groups on 2026-08-12; see UPSTREAM.md.
+<!-- Modified by joeroberts/terraform-aws-security-groups on 2026-08-12; see UPSTREAM.md. -->
+```
+
+Then run:
 
 ```bash
-rg -n '^  create = var\.create$' "$sg_import_root/source/main.tf"
+set -euo pipefail
+sg_expected_sha='58d8e895915f5573767081142d063b7caf7a2b47'
+sg_retained_root="/private/tmp/terraform-aws-security-group-v6.0.0-$sg_expected_sha/task1-$(git rev-parse HEAD)"
+sg_verified_clone="$sg_retained_root/verified-upstream"
+sg_import_root="$sg_retained_root/import"
+sg_neutral_pattern="$(printf '%s|%s|%s|%s|%s|%s|%s' \
+  'put''in' 'khuy''lo' 'ukr''ain' 'russ''ia' 'bela''rus' 'cri''mea' 'don''bas')"
+sg_create_matches="$sg_import_root/expected/direct-create-matches"
+rg -n '^  create = var\.create$' "$sg_import_root/source/main.tf" \
+  > "$sg_create_matches"
+test "$(wc -l < "$sg_create_matches" | tr -d '[:space:]')" = "1"
 if rg -n -i "$sg_neutral_pattern" "$sg_import_root/source" \
-  --hidden --glob '!.git/**'; then exit 1; fi
+  --hidden; then
+  exit 1
+else
+  sg_rg_status=$?
+  test "$sg_rg_status" = "1"
+fi
 ```
 
 - [ ] **Step 4: Copy the sanitized tree and create provenance**
 
 ```bash
-rsync -a --exclude .git "$sg_import_root/source/" ./
+set -euo pipefail
+sg_expected_sha='58d8e895915f5573767081142d063b7caf7a2b47'
+sg_retained_root="/private/tmp/terraform-aws-security-group-v6.0.0-$sg_expected_sha/task1-$(git rev-parse HEAD)"
+sg_verified_clone="$sg_retained_root/verified-upstream"
+sg_import_root="$sg_retained_root/import"
+rsync -a --exclude='/.git' "$sg_import_root/source/" ./
 test -f generate/catalog.tf
-test "$(find modules -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" = "53"
-test "$(find wrappers -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" = "53"
+test -f CHANGELOG.md
+test "$(find modules -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d '[:space:]')" = "53"
+test "$(find wrappers -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d '[:space:]')" = "53"
+test -f docs/superpowers/plans/2026-08-12-security-groups-neutral-derivative.md
+test -f docs/superpowers/status/2026-08-12-security-groups-neutral-derivative-blocker.md
 ```
 
 Create `UPSTREAM.md` with the singular upstream URL, exact tag/SHA/import date,
 plural target name, reserved neutral tag, intentional input/gate/wrapper/docs
-deltas, unchanged-default statement, Apache notices, upstream authorship versus
-derivative maintenance, catalog ownership, and an update process that sanitizes
-before copy and never merges upstream history.
+deltas including the authorized changelog-bullet deletion, unchanged-default
+statement, Apache notices, upstream authorship versus derivative maintenance,
+catalog ownership, and an update process that sanitizes before copy and never
+merges upstream history.
 
-- [ ] **Step 5: Prove approved HCL delta and commit**
+- [ ] **Step 5: Prove the exact five-path imported delta**
 
 ```bash
-diff -u \
-  <(git -C "$sg_import_root/source" show HEAD:main.tf | perl -pe 's/create = var\.create && var\.[A-Za-z0-9_]+/create = var.create/') \
-  <(sed '1d' main.tf)
-diff -u \
-  <(git -C "$sg_import_root/source" show HEAD:variables.tf | sed '140,144d' | perl -0pe 's/\n+\z/\n/') \
-  <(sed '1d' variables.tf | perl -0pe 's/\n+\z/\n/')
-diff -u \
-  <(git -C "$sg_import_root/source" show HEAD:wrappers/main.tf | sed '12d') \
-  <(sed '1d' wrappers/main.tf)
-terraform fmt -check -recursive
-git diff --check
-git add . ':!docs/superpowers'
-git commit -m "feat: import neutral security group module v6.0.0"
-git push -u origin neutral/v6.0.0-neutral.1
+set -euo pipefail
+sg_expected_sha='58d8e895915f5573767081142d063b7caf7a2b47'
+sg_retained_root="/private/tmp/terraform-aws-security-group-v6.0.0-$sg_expected_sha/task1-$(git rev-parse HEAD)"
+sg_verified_clone="$sg_retained_root/verified-upstream"
+sg_import_root="$sg_retained_root/import"
+sg_notice='Modified by joeroberts/terraform-aws-security-groups on 2026-08-12; see UPSTREAM.md.'
+sg_hcl_notice="# $sg_notice"
+sg_markdown_notice="<!-- $sg_notice -->"
+for sg_hcl_file in main.tf variables.tf wrappers/main.tf; do
+  test "$(head -n 1 "$sg_import_root/source/$sg_hcl_file")" = "$sg_hcl_notice"
+  test "$(head -n 1 "$sg_hcl_file")" = "$sg_hcl_notice"
+done
+for sg_markdown_file in README.md CHANGELOG.md; do
+  test "$(head -n 1 "$sg_import_root/source/$sg_markdown_file")" = \
+    "$sg_markdown_notice"
+  test "$(head -n 1 "$sg_markdown_file")" = "$sg_markdown_notice"
+done
+perl -pe 's/create = var\.create && var\.[A-Za-z0-9_]+/create = var.create/' \
+  "$sg_import_root/pristine/main.tf" > "$sg_import_root/expected/main.tf"
+sed '1d' main.tf > "$sg_import_root/expected/actual-main.tf"
+cmp "$sg_import_root/expected/main.tf" \
+  "$sg_import_root/expected/actual-main.tf"
+sed '140,144d' "$sg_import_root/pristine/variables.tf" \
+  > "$sg_import_root/expected/variables.tf"
+sed '1d' variables.tf > "$sg_import_root/expected/actual-variables.tf"
+cmp "$sg_import_root/expected/variables.tf" \
+  "$sg_import_root/expected/actual-variables.tf"
+sed '12d' "$sg_import_root/pristine/wrappers/main.tf" \
+  > "$sg_import_root/expected/wrappers-main.tf"
+sed '1d' wrappers/main.tf > "$sg_import_root/expected/actual-wrappers-main.tf"
+cmp "$sg_import_root/expected/wrappers-main.tf" \
+  "$sg_import_root/expected/actual-wrappers-main.tf"
+{
+  printf '%s\n' "$sg_markdown_notice"
+  sed '5d;130d;158,162d' "$sg_import_root/pristine/README.md"
+} > "$sg_import_root/expected/README.md"
+{
+  printf '%s\n' "$sg_markdown_notice"
+  sed '194d' "$sg_import_root/pristine/CHANGELOG.md"
+} > "$sg_import_root/expected/CHANGELOG.md"
+cmp "$sg_import_root/expected/README.md" \
+  "$sg_import_root/source/README.md"
+cmp "$sg_import_root/expected/README.md" README.md
+cmp "$sg_import_root/expected/CHANGELOG.md" \
+  "$sg_import_root/source/CHANGELOG.md"
+cmp "$sg_import_root/expected/CHANGELOG.md" CHANGELOG.md
+sg_pristine_worklist="$sg_import_root/expected/pristine-worklist"
+git -C "$sg_verified_clone" ls-tree -r --name-only HEAD | sort \
+  > "$sg_pristine_worklist"
+sg_pristine_count=$(wc -l < "$sg_pristine_worklist" | tr -d '[:space:]')
+case "$sg_pristine_count" in
+  ''|*[!0-9]*) exit 1 ;;
+esac
+test "$sg_pristine_count" -gt "0"
+sg_changed_paths=()
+sg_compared_count=0
+while IFS= read -r sg_path; do
+  test -n "$sg_path"
+  sg_compared_count=$((sg_compared_count + 1))
+  if ! cmp -s "$sg_import_root/pristine/$sg_path" "$sg_path"; then
+    sg_changed_paths[${#sg_changed_paths[@]}]="$sg_path"
+  fi
+done < "$sg_pristine_worklist"
+test "$sg_compared_count" -eq "$sg_pristine_count"
+test "${#sg_changed_paths[@]}" -eq "5"
+printf '%s\n' CHANGELOG.md README.md main.tf variables.tf wrappers/main.tf \
+  > "$sg_import_root/expected/authorized-paths"
+printf '%s\n' "${sg_changed_paths[@]}" | sort \
+  > "$sg_import_root/expected/actual-changed-paths"
+diff -u "$sg_import_root/expected/authorized-paths" \
+  "$sg_import_root/expected/actual-changed-paths"
+sg_imported_file_set="$sg_import_root/expected/imported-file-set"
+find . \( -path './.git' -o -path './.superpowers' \) -prune -o \
+  -type f -print0 > "$sg_import_root/expected/target-files-nul"
+while IFS= read -r -d '' sg_target_file; do
+  sg_target_path=${sg_target_file#./}
+  case "$sg_target_path" in
+    UPSTREAM.md|docs/superpowers/plans/2026-08-12-security-groups-neutral-derivative.md|docs/superpowers/status/2026-08-12-security-groups-neutral-derivative-blocker.md)
+      continue
+      ;;
+  esac
+  printf '%s\n' "$sg_target_path"
+done < "$sg_import_root/expected/target-files-nul" | sort \
+  > "$sg_imported_file_set"
+diff -u "$sg_pristine_worklist" "$sg_imported_file_set"
 ```
 
-Expected: three exact HCL changes plus notices, all imported in one neutral commit.
+Expected: `README.md` and `CHANGELOG.md` are byte-identical to their
+deterministic notice-plus-deletion transforms. The README comparison preserves
+the terminal blank left by deleting pristine lines 158-162. Exactly five
+pristine paths differ, the three changed HCL files match their exact transforms,
+every other HCL remains byte-identical as part of the full pristine worklist,
+and root-only exclusions do not hide nested `.git`, `.superpowers`, or planning
+namesakes.
+
+- [ ] **Step 6: Stage, whitespace-check, commit, and push the import**
+
+```bash
+set -euo pipefail
+sg_expected_sha='58d8e895915f5573767081142d063b7caf7a2b47'
+sg_retained_root="/private/tmp/terraform-aws-security-group-v6.0.0-$sg_expected_sha/task1-$(git rev-parse HEAD)"
+sg_verified_clone="$sg_retained_root/verified-upstream"
+sg_import_root="$sg_retained_root/import"
+sg_markdown_notice='<!-- Modified by joeroberts/terraform-aws-security-groups on 2026-08-12; see UPSTREAM.md. -->'
+{
+  printf '%s\n' "$sg_markdown_notice"
+  sed '5d;130d;158,162d' "$sg_import_root/pristine/README.md"
+} > "$sg_import_root/expected/README-precommit.md"
+cmp "$sg_import_root/expected/README-precommit.md" \
+  "$sg_import_root/source/README.md"
+cmp "$sg_import_root/expected/README-precommit.md" README.md
+terraform fmt -check -recursive
+git add --all -- . \
+  ':(top,exclude)docs/superpowers/plans/2026-08-12-security-groups-neutral-derivative.md' \
+  ':(top,exclude)docs/superpowers/status/2026-08-12-security-groups-neutral-derivative-blocker.md' \
+  ':(top,exclude).superpowers/**'
+sg_staged_paths="$sg_import_root/expected/staged-paths-nul"
+git diff --cached --name-only -z > "$sg_staged_paths"
+test -s "$sg_staged_paths"
+while IFS= read -r -d '' sg_staged_path; do
+  case "$sg_staged_path" in
+    docs/superpowers/plans/2026-08-12-security-groups-neutral-derivative.md|docs/superpowers/status/2026-08-12-security-groups-neutral-derivative-blocker.md|.superpowers|.superpowers/*)
+      exit 1
+      ;;
+  esac
+done < "$sg_staged_paths"
+git diff --cached --name-only -- UPSTREAM.md \
+  > "$sg_import_root/expected/staged-provenance"
+test -s "$sg_import_root/expected/staged-provenance"
+git diff --cached --name-only -- README.md \
+  > "$sg_import_root/expected/staged-root-readme"
+test -s "$sg_import_root/expected/staged-root-readme"
+git diff --cached --check -- . ':(top,exclude)README.md'
+git -c core.whitespace=-blank-at-eof diff --cached --check -- README.md
+git commit -m "feat: import neutral security group module v6.0.0"
+git push -u origin neutral/v6.0.0-neutral.1
+git fetch origin neutral/v6.0.0-neutral.1
+test "$(git rev-parse HEAD)" = \
+  "$(git rev-parse origin/neutral/v6.0.0-neutral.1)"
+```
+
+Expected: intended root import/provenance paths are staged before whitespace
+gating, so untracked imported files cannot escape the check. Default cached
+whitespace checks apply to every non-root-README path. The README-only cached
+check disables only `blank-at-eof`, and is safe because the exact expected and
+target README bytes were compared earlier in this same fail-closed fence. No
+dynamic `git diff --no-index --check` producer controls the exception. The
+neutral import is committed and normally pushed as one synchronized milestone.
 
 ---
 
@@ -150,8 +392,12 @@ Expected: three exact HCL changes plus notices, all imported in one neutral comm
 - [ ] **Step 1: Prove consumer-source acceptance fails**
 
 ```bash
-test "$(rg -l 'terraform-aws-modules/security-group/aws|tfr:///terraform-aws-modules/security-group/aws' \
-  README.md modules wrappers -g README.md | wc -l | tr -d ' ')" = "108"
+set -euo pipefail
+sg_acceptance_root=$(mktemp -d /private/tmp/terraform-aws-security-groups-acceptance.XXXXXX)
+rg -l 'terraform-aws-modules/security-group/aws|tfr:///terraform-aws-modules/security-group/aws' \
+  README.md modules wrappers -g README.md \
+  > "$sg_acceptance_root/upstream-consumer-sources"
+test "$(wc -l < "$sg_acceptance_root/upstream-consumer-sources" | tr -d '[:space:]')" = "108"
 ```
 
 Expected: root, 53 preset modules, and 54 wrapper documents still contain active upstream sources.
@@ -169,12 +415,23 @@ source = "git::ssh://git@github.com/joeroberts/terraform-aws-security-groups.git
 Initialize/apply the generator, then regenerate Terraform docs:
 
 ```bash
+set -euo pipefail
+sg_generator_root=$(mktemp -d /private/tmp/terraform-aws-security-groups-generator.XXXXXX)
+sg_module_readmes="$sg_generator_root/module-readmes"
+sg_module_doc_dirs="$sg_generator_root/module-doc-directories"
 terraform -chdir=generate init -backend=false -input=false
 terraform -chdir=generate apply -auto-approve -input=false
+find modules -mindepth 2 -maxdepth 2 -type f -name README.md | sort \
+  > "$sg_module_readmes"
+test "$(wc -l < "$sg_module_readmes" | tr -d '[:space:]')" = "53"
+while IFS= read -r sg_module_readme; do
+  dirname "$sg_module_readme"
+done < "$sg_module_readmes" > "$sg_module_doc_dirs"
+test "$(wc -l < "$sg_module_doc_dirs" | tr -d '[:space:]')" = "53"
 while IFS= read -r sg_docs_dir; do
   go run github.com/terraform-docs/terraform-docs@v0.24.0 markdown table \
     --lockfile=false --output-file README.md --output-mode inject "$sg_docs_dir"
-done < <(rg -l '<!-- BEGIN_TF_DOCS -->' -g README.md | xargs -n1 dirname | sort -u)
+done < "$sg_module_doc_dirs"
 ```
 
 Expected: exactly 53 module READMEs are regenerated from the modified template; generated HCL remains unchanged.
@@ -199,11 +456,16 @@ For each `wrappers/**/README.md`, derive its path relative to the repository and
 mechanically replace Terraform, Terragrunt, and commented Git sources with:
 
 ```bash
+set -euo pipefail
+sg_wrapper_root=$(mktemp -d /private/tmp/terraform-aws-security-groups-wrappers.XXXXXX)
+sg_wrapper_readmes="$sg_wrapper_root/readmes"
+find wrappers -type f -name README.md | sort > "$sg_wrapper_readmes"
+test "$(wc -l < "$sg_wrapper_readmes" | tr -d '[:space:]')" = "54"
 while IFS= read -r sg_wrapper_readme; do
   sg_wrapper_path=$(dirname "$sg_wrapper_readme")
   sg_wrapper_source="git::ssh://git@github.com/joeroberts/terraform-aws-security-groups.git//$sg_wrapper_path?ref=v6.0.0-neutral.1"
   printf '%s -> %s\n' "$sg_wrapper_readme" "$sg_wrapper_source"
-done < <(find wrappers -name README.md -type f | sort)
+done < "$sg_wrapper_readmes"
 ```
 
 Prepend the dated HTML notice to every wrapper README. This is an approved bulk
@@ -212,16 +474,44 @@ mechanical rewrite; do not change wrapper prose or HCL inputs.
 - [ ] **Step 5: Prove generated HCL and consumer docs are correct**
 
 ```bash
-sg_hcl_before=$(find modules -type f -name '*.tf' -print0 | sort -z | xargs -0 shasum -a 256 | shasum -a 256)
+set -euo pipefail
+sg_generation_gate=$(mktemp -d /private/tmp/terraform-aws-security-groups-generation.XXXXXX)
+sg_hcl_worklist="$sg_generation_gate/module-hcl-files"
+sg_hcl_before_manifest="$sg_generation_gate/module-hcl-before"
+sg_hcl_after_manifest="$sg_generation_gate/module-hcl-after"
+sg_module_readmes="$sg_generation_gate/module-readmes"
+sg_module_doc_dirs="$sg_generation_gate/module-doc-directories"
+find modules -type f -name '*.tf' | sort > "$sg_hcl_worklist"
+test "$(wc -l < "$sg_hcl_worklist" | tr -d '[:space:]')" = "212"
+while IFS= read -r sg_hcl_file; do
+  shasum -a 256 "$sg_hcl_file"
+done < "$sg_hcl_worklist" > "$sg_hcl_before_manifest"
 terraform -chdir=generate apply -auto-approve -input=false
-test "$sg_hcl_before" = "$(find modules -type f -name '*.tf' -print0 | sort -z | xargs -0 shasum -a 256 | shasum -a 256)"
+while IFS= read -r sg_hcl_file; do
+  shasum -a 256 "$sg_hcl_file"
+done < "$sg_hcl_worklist" > "$sg_hcl_after_manifest"
+cmp "$sg_hcl_before_manifest" "$sg_hcl_after_manifest"
+find modules -mindepth 2 -maxdepth 2 -type f -name README.md | sort \
+  > "$sg_module_readmes"
+test "$(wc -l < "$sg_module_readmes" | tr -d '[:space:]')" = "53"
+while IFS= read -r sg_module_readme; do
+  dirname "$sg_module_readme"
+done < "$sg_module_readmes" > "$sg_module_doc_dirs"
+test "$(wc -l < "$sg_module_doc_dirs" | tr -d '[:space:]')" = "53"
 while IFS= read -r sg_docs_dir; do
   go run github.com/terraform-docs/terraform-docs@v0.24.0 markdown table \
     --lockfile=false --output-file README.md --output-mode inject "$sg_docs_dir"
-done < <(rg -l '<!-- BEGIN_TF_DOCS -->' -g README.md | xargs -n1 dirname | sort -u)
+done < "$sg_module_doc_dirs"
 if rg -n 'source\s*=\s*"(terraform-aws-modules/security-group/aws|tfr:///terraform-aws-modules/security-group/aws)' \
-  README.md modules wrappers -g README.md; then exit 1; fi
-test "$(rg -l 'v6\.0\.0-neutral\.1' README.md modules wrappers -g README.md | wc -l | tr -d ' ')" = "108"
+  README.md modules wrappers -g README.md; then
+  exit 1
+else
+  sg_rg_status=$?
+  test "$sg_rg_status" = "1"
+fi
+rg -l 'v6\.0\.0-neutral\.1' README.md modules wrappers -g README.md \
+  > "$sg_generation_gate/neutral-source-readmes"
+test "$(wc -l < "$sg_generation_gate/neutral-source-readmes" | tr -d '[:space:]')" = "108"
 ```
 
 Expected: generator changes no module HCL, all 108 consumer documents use the reserved neutral source, and docs are re-injected after generator execution.
@@ -229,6 +519,7 @@ Expected: generator changes no module HCL, all 108 consumer documents use the re
 - [ ] **Step 6: Commit and push documentation generation**
 
 ```bash
+set -euo pipefail
 git diff --check
 git add README.md generate/templates/README.md.tftpl modules/*/README.md wrappers/README.md wrappers/*/README.md
 git commit -m "docs: generate neutral security group sources"
@@ -251,7 +542,11 @@ git push
 First require the acceptance check to find unpinned refs:
 
 ```bash
-test -n "$(rg -n -P 'uses:\s+[^\s#]+@(?![0-9a-f]{40}(?:\s|$))' .github/workflows)"
+set -euo pipefail
+sg_workflow_gate=$(mktemp -d /private/tmp/terraform-aws-security-groups-workflows.XXXXXX)
+rg -n -P 'uses:\s+[^\s#]+@(?![0-9a-f]{40}(?:\s|$))' .github/workflows \
+  > "$sg_workflow_gate/unpinned"
+test -s "$sg_workflow_gate/unpinned"
 ```
 
 Then use `apply_patch` with this exact mapping and version comments:
@@ -286,8 +581,16 @@ Retain the upstream-owner guard in `release.yml`, keeping derivative release aut
 - [ ] **Step 3: Validate, commit, and push workflows**
 
 ```bash
-if rg -n -P 'uses:\s+[^\s#]+@(?![0-9a-f]{40}(?:\s|$))' .github/workflows; then exit 1; fi
-test "$(rg -l '^permissions:' .github/workflows | wc -l | tr -d ' ')" = "6"
+set -euo pipefail
+if rg -n -P 'uses:\s+[^\s#]+@(?![0-9a-f]{40}(?:\s|$))' .github/workflows; then
+  exit 1
+else
+  sg_rg_status=$?
+  test "$sg_rg_status" = "1"
+fi
+sg_workflow_gate=$(mktemp -d /private/tmp/terraform-aws-security-groups-workflows.XXXXXX)
+rg -l '^permissions:' .github/workflows > "$sg_workflow_gate/permissions"
+test "$(wc -l < "$sg_workflow_gate/permissions" | tr -d '[:space:]')" = "6"
 go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
 git diff --check
 git add .github/workflows
@@ -310,14 +613,34 @@ git push
 - [ ] **Step 1: Regenerate in the required order and prove stability**
 
 ```bash
-sg_hcl_before=$(find modules -type f -name '*.tf' -print0 | sort -z | xargs -0 shasum -a 256 | shasum -a 256)
+set -euo pipefail
+sg_verification_root=$(mktemp -d /private/tmp/terraform-aws-security-groups-verification.XXXXXX)
+sg_hcl_worklist="$sg_verification_root/module-hcl-files"
+sg_hcl_before_manifest="$sg_verification_root/module-hcl-before"
+sg_hcl_after_manifest="$sg_verification_root/module-hcl-after"
+sg_docs_files="$sg_verification_root/docs-files"
+sg_docs_worklist="$sg_verification_root/docs-directories"
+find modules -type f -name '*.tf' | sort > "$sg_hcl_worklist"
+test "$(wc -l < "$sg_hcl_worklist" | tr -d '[:space:]')" = "212"
+while IFS= read -r sg_hcl_file; do
+  shasum -a 256 "$sg_hcl_file"
+done < "$sg_hcl_worklist" > "$sg_hcl_before_manifest"
 terraform -chdir=generate init -backend=false -input=false
 terraform -chdir=generate apply -auto-approve -input=false
-test "$sg_hcl_before" = "$(find modules -type f -name '*.tf' -print0 | sort -z | xargs -0 shasum -a 256 | shasum -a 256)"
+while IFS= read -r sg_hcl_file; do
+  shasum -a 256 "$sg_hcl_file"
+done < "$sg_hcl_worklist" > "$sg_hcl_after_manifest"
+cmp "$sg_hcl_before_manifest" "$sg_hcl_after_manifest"
+rg -l '<!-- BEGIN_TF_DOCS -->' -g README.md > "$sg_docs_files"
+test "$(wc -l < "$sg_docs_files" | tr -d '[:space:]')" = "55"
+while IFS= read -r sg_docs_file; do
+  dirname "$sg_docs_file"
+done < "$sg_docs_files" | sort -u > "$sg_docs_worklist"
+test "$(wc -l < "$sg_docs_worklist" | tr -d '[:space:]')" = "55"
 while IFS= read -r sg_docs_dir; do
   go run github.com/terraform-docs/terraform-docs@v0.24.0 markdown table \
     --lockfile=false --output-file README.md --output-mode inject "$sg_docs_dir"
-done < <(rg -l '<!-- BEGIN_TF_DOCS -->' -g README.md | xargs -n1 dirname | sort -u)
+done < "$sg_docs_worklist"
 git diff --exit-code
 terraform fmt -check -recursive
 ```
@@ -327,6 +650,7 @@ Expected: catalog regeneration changes no HCL, docs are stable after regeneratio
 - [ ] **Step 2: Run inherited TFLint rules**
 
 ```bash
+set -euo pipefail
 sg_tflint_tmp=$(mktemp -d)
 curl -fsSL https://github.com/terraform-linters/tflint/releases/download/v0.62.0/tflint_darwin_arm64.zip -o "$sg_tflint_tmp/tflint.zip"
 unzip -q "$sg_tflint_tmp/tflint.zip" -d "$sg_tflint_tmp"
@@ -343,69 +667,187 @@ unzip -q "$sg_tflint_tmp/tflint.zip" -d "$sg_tflint_tmp"
 - [ ] **Step 3: Initialize and validate exactly 110 roots**
 
 ```bash
+set -euo pipefail
+sg_validation_root=$(mktemp -d /private/tmp/terraform-aws-security-groups-roots.XXXXXX)
 sg_plugin_cache=$(mktemp -d)
-sg_root_count=0
+sg_versions_files="$sg_validation_root/versions-files"
+sg_tf_worklist="$sg_validation_root/terraform-directories"
+rg --files -g versions.tf > "$sg_versions_files"
+test "$(wc -l < "$sg_versions_files" | tr -d '[:space:]')" = "110"
+while IFS= read -r sg_versions_file; do
+  dirname "$sg_versions_file"
+done < "$sg_versions_files" | sort -u > "$sg_tf_worklist"
+sg_tf_worklist_count=$(wc -l < "$sg_tf_worklist" | tr -d '[:space:]')
+case "$sg_tf_worklist_count" in
+  ''|*[!0-9]*) exit 1 ;;
+esac
+test "$sg_tf_worklist_count" = "110"
+sg_tf_directories=()
 while IFS= read -r sg_tf_dir; do
+  test -n "$sg_tf_dir"
+  sg_tf_directories[${#sg_tf_directories[@]}]="$sg_tf_dir"
+done < "$sg_tf_worklist"
+test "${#sg_tf_directories[@]}" -eq "$sg_tf_worklist_count"
+sg_root_count=0
+for sg_tf_dir in "${sg_tf_directories[@]}"; do
   sg_root_count=$((sg_root_count + 1))
   printf 'Validating %s\n' "$sg_tf_dir"
   TF_PLUGIN_CACHE_DIR="$sg_plugin_cache" terraform -chdir="$sg_tf_dir" init -backend=false -input=false
   TF_PLUGIN_CACHE_DIR="$sg_plugin_cache" terraform -chdir="$sg_tf_dir" validate
-done < <(rg --files -g versions.tf | xargs -n1 dirname | sort -u)
+done
 test "$sg_root_count" = "110"
 ```
 
 Expected: root, Complete example, generator, 53 modules, and 54 wrappers validate without AWS operations.
 
-- [ ] **Step 4: Prove full HCL parity and direct creation behavior**
+- [ ] **Step 4: Prove full HCL parity from a fresh archived reference**
 
 ```bash
+set -euo pipefail
+sg_expected_sha='58d8e895915f5573767081142d063b7caf7a2b47'
 sg_compare_root=$(mktemp -d /private/tmp/terraform-aws-security-group-compare.XXXXXX)
+sg_verified_clone="$sg_compare_root/verified-upstream"
+sg_pristine_root="$sg_compare_root/pristine"
 git clone --quiet --depth 1 --branch v6.0.0 \
   https://github.com/terraform-aws-modules/terraform-aws-security-group.git \
-  "$sg_compare_root/upstream"
-test "$(git -C "$sg_compare_root/upstream" rev-parse HEAD)" = \
-  "58d8e895915f5573767081142d063b7caf7a2b47"
+  "$sg_verified_clone"
+test "$(git -C "$sg_verified_clone" rev-parse HEAD)" = "$sg_expected_sha"
+test "$(git -C "$sg_verified_clone" rev-parse refs/tags/v6.0.0^{commit})" = \
+  "$sg_expected_sha"
+test -z "$(git -C "$sg_verified_clone" status --porcelain)"
+mkdir "$sg_pristine_root"
+git -C "$sg_verified_clone" archive --format=tar HEAD | \
+  tar -xf - -C "$sg_pristine_root"
+test ! -e "$sg_pristine_root/.git"
+sg_tf_worklist="$sg_compare_root/terraform-files"
+find "$sg_pristine_root" -type f -name '*.tf' -print | \
+  sed "s#^$sg_pristine_root/##" | sort > "$sg_tf_worklist"
+sg_tf_count=$(wc -l < "$sg_tf_worklist" | tr -d '[:space:]')
+case "$sg_tf_count" in
+  ''|*[!0-9]*) exit 1 ;;
+esac
+test "$sg_tf_count" = "441"
+sg_compared_tf_count=0
 while IFS= read -r sg_tf_file; do
+  test -n "$sg_tf_file"
+  sg_compared_tf_count=$((sg_compared_tf_count + 1))
   case "$sg_tf_file" in
     main.tf|variables.tf|wrappers/main.tf) continue ;;
   esac
-  diff -u "$sg_compare_root/upstream/$sg_tf_file" "$sg_tf_file"
-done < <(git -C "$sg_compare_root/upstream" ls-files '*.tf' | sort)
-diff -u \
-  <(perl -pe 's/create = var\.create && var\.[A-Za-z0-9_]+/create = var.create/' "$sg_compare_root/upstream/main.tf") \
-  <(sed '1d' main.tf)
-diff -u \
-  <(sed '140,144d' "$sg_compare_root/upstream/variables.tf" | perl -0pe 's/\n+\z/\n/') \
-  <(sed '1d' variables.tf | perl -0pe 's/\n+\z/\n/')
-diff -u \
-  <(sed '12d' "$sg_compare_root/upstream/wrappers/main.tf") \
-  <(sed '1d' wrappers/main.tf)
-test "$(rg -c '^  create = var\.create$' main.tf)" = "1"
+  cmp "$sg_pristine_root/$sg_tf_file" "$sg_tf_file"
+done < "$sg_tf_worklist"
+test "$sg_compared_tf_count" -eq "$sg_tf_count"
+sg_hcl_notice='# Modified by joeroberts/terraform-aws-security-groups on 2026-08-12; see UPSTREAM.md.'
+for sg_hcl_file in main.tf variables.tf wrappers/main.tf; do
+  test "$(head -n 1 "$sg_hcl_file")" = "$sg_hcl_notice"
+done
+perl -pe 's/create = var\.create && var\.[A-Za-z0-9_]+/create = var.create/' \
+  "$sg_pristine_root/main.tf" > "$sg_compare_root/expected-main.tf"
+sed '1d' main.tf > "$sg_compare_root/actual-main.tf"
+cmp "$sg_compare_root/expected-main.tf" "$sg_compare_root/actual-main.tf"
+sed '140,144d' "$sg_pristine_root/variables.tf" \
+  > "$sg_compare_root/expected-variables.tf"
+sed '1d' variables.tf > "$sg_compare_root/actual-variables.tf"
+cmp "$sg_compare_root/expected-variables.tf" \
+  "$sg_compare_root/actual-variables.tf"
+sed '12d' "$sg_pristine_root/wrappers/main.tf" \
+  > "$sg_compare_root/expected-wrappers-main.tf"
+sed '1d' wrappers/main.tf > "$sg_compare_root/actual-wrappers-main.tf"
+cmp "$sg_compare_root/expected-wrappers-main.tf" \
+  "$sg_compare_root/actual-wrappers-main.tf"
+sg_create_matches="$sg_compare_root/direct-create-matches"
+rg -n '^  create = var\.create$' main.tf > "$sg_create_matches"
+test "$(wc -l < "$sg_create_matches" | tr -d '[:space:]')" = "1"
+{
+  printf '%s\n' \
+    '<!-- Modified by joeroberts/terraform-aws-security-groups on 2026-08-12; see UPSTREAM.md. -->'
+  sed '194d' "$sg_pristine_root/CHANGELOG.md"
+} > "$sg_compare_root/expected-CHANGELOG.md"
+cmp "$sg_compare_root/expected-CHANGELOG.md" CHANGELOG.md
 ```
 
 Expected: every unchanged Terraform file is byte-identical, each of the three
-approved files matches its deterministic transform, and the direct creation
-expression occurs once.
+approved HCL files matches its deterministic transform, the direct creation
+expression occurs once, and `CHANGELOG.md` remains the exact authorized
+bullet-deletion-plus-notice transform. This fence creates and verifies its own
+fresh clone and archives its committed tree; it does not consume Task 1 shell
+state or import upstream Git history.
 
 - [ ] **Step 5: Notices, workflows, neutrality/history, and remote synchronization**
 
 ```bash
+set -euo pipefail
 sg_notice='Modified by joeroberts/terraform-aws-security-groups on 2026-08-12; see UPSTREAM.md.'
-for sg_notice_file in main.tf variables.tf wrappers/main.tf README.md \
+for sg_notice_file in main.tf variables.tf wrappers/main.tf README.md CHANGELOG.md \
   generate/templates/README.md.tftpl modules/*/README.md wrappers/README.md \
   wrappers/*/README.md .github/workflows/*; do
-  head -n 1 "$sg_notice_file" | rg -Fq "$sg_notice"
+  case "$sg_notice_file" in
+    *.tf|.github/workflows/*) sg_expected_notice="# $sg_notice" ;;
+    *.md|*.tftpl) sg_expected_notice="<!-- $sg_notice -->" ;;
+    *) exit 1 ;;
+  esac
+  test "$(head -n 1 "$sg_notice_file")" = "$sg_expected_notice"
 done
+if rg -n 'source\s*=\s*"(terraform-aws-modules/security-group/aws|tfr:///terraform-aws-modules/security-group/aws)' \
+  README.md modules wrappers -g README.md; then
+  exit 1
+else
+  sg_rg_status=$?
+  test "$sg_rg_status" = "1"
+fi
+if rg -n -P 'uses:\s+[^\s#]+@(?![0-9a-f]{40}(?:\s|$))' .github/workflows; then
+  exit 1
+else
+  sg_rg_status=$?
+  test "$sg_rg_status" = "1"
+fi
 go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
 sg_neutral_pattern="$(printf '%s|%s|%s|%s|%s|%s|%s' \
   'put''in' 'khuy''lo' 'ukr''ain' 'russ''ia' 'bela''rus' 'cri''mea' 'don''bas')"
-if rg -n -i "$sg_neutral_pattern" . --hidden --glob '!.git/**' --glob '!.terraform/**'; then exit 1; fi
-if git grep -nEi "$sg_neutral_pattern" $(git rev-list --all); then exit 1; fi
+sg_final_gate=$(mktemp -d /private/tmp/terraform-aws-security-groups-final.XXXXXX)
+sg_scan_worklist="$sg_final_gate/scan-files"
+find . \( -path './.git' -o -path './.superpowers' \) -prune -o \
+  -type d -name .terraform -prune -o -type f -print0 > "$sg_scan_worklist"
+test -s "$sg_scan_worklist"
+sg_tree_scan_status=0
+while IFS= read -r -d '' sg_scan_file; do
+  if rg -n -i "$sg_neutral_pattern" -- "$sg_scan_file"; then
+    sg_tree_scan_status=1
+  else
+    sg_rg_status=$?
+    test "$sg_rg_status" = "1"
+  fi
+done < "$sg_scan_worklist"
+test "$sg_tree_scan_status" = "0"
+sg_revisions="$sg_final_gate/revisions"
+git rev-list --all > "$sg_revisions"
+sg_revision_line_count=$(wc -l < "$sg_revisions" | tr -d '[:space:]')
+case "$sg_revision_line_count" in
+  ''|*[!0-9]*) exit 1 ;;
+esac
+test "$sg_revision_line_count" -gt "0"
+sg_revision_args=()
+while IFS= read -r sg_revision; do
+  test -n "$sg_revision"
+  sg_revision_args[${#sg_revision_args[@]}]="$sg_revision"
+done < "$sg_revisions"
+test "${#sg_revision_args[@]}" -eq "$sg_revision_line_count"
+if git grep -nEi "$sg_neutral_pattern" "${sg_revision_args[@]}"; then
+  exit 1
+else
+  sg_git_grep_status=$?
+  test "$sg_git_grep_status" = "1"
+fi
 git diff --check
 test -z "$(git status --porcelain)"
+test -z "$(git ls-files .superpowers)"
+git check-ignore -q \
+  .superpowers/sdd/2026-08-12-security-groups-neutral-derivative/plan-amendment-report.md
 git fetch origin neutral/v6.0.0-neutral.1
 test "$(git rev-parse HEAD)" = "$(git rev-parse origin/neutral/v6.0.0-neutral.1)"
-test -z "$(git ls-remote --tags origin refs/tags/v6.0.0-neutral.1)"
+git ls-remote --tags origin refs/tags/v6.0.0-neutral.1 \
+  > "$sg_final_gate/reserved-tag"
+test ! -s "$sg_final_gate/reserved-tag"
 ```
 
 ---
@@ -435,6 +877,7 @@ intentional changes, generator evidence, validation counts, independent review,
 and deferred tag. Run:
 
 ```bash
+set -euo pipefail
 gh pr create --repo joeroberts/terraform-aws-security-groups \
   --base main --head neutral/v6.0.0-neutral.1 \
   --title "feat: add neutral security group module v6.0.0" \
