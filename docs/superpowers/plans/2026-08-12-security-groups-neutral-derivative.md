@@ -58,7 +58,7 @@
 ### Task 1: Sanitized Root Import
 
 **Required resumption gate:** Commit this plan/status amendment as
-`docs: authorize security groups changelog neutralization` and normally push it
+`docs: harden security groups plan review gates` and normally push it
 to `neutral/v6.0.0-neutral.1` without force before running any Task 1 source
 command. Task 1 itself proves that exact documentation-only commit is the clean,
 synchronized branch tip.
@@ -78,7 +78,7 @@ synchronized branch tip.
 set -euo pipefail
 sg_branch='neutral/v6.0.0-neutral.1'
 sg_expected_sha='58d8e895915f5573767081142d063b7caf7a2b47'
-sg_amendment_parent='aa6e3dcbbd4ded54549f528e238dcbf7027b4f81'
+sg_amendment_parent='c86208cdcf143e84612d9a4000b053eeb08eb26a'
 sg_retained_root="/private/tmp/terraform-aws-security-group-v6.0.0-$sg_expected_sha/task1-$(git rev-parse HEAD)"
 sg_verified_clone="$sg_retained_root/verified-upstream"
 sg_import_root="$sg_retained_root/import"
@@ -86,7 +86,7 @@ test "$(git branch --show-current)" = "neutral/v6.0.0-neutral.1"
 test "$(git remote get-url origin)" = "git@github.com:joeroberts/terraform-aws-security-groups.git"
 test -z "$(git status --porcelain)"
 test "$(git log -1 --format=%s)" = \
-  "docs: authorize security groups changelog neutralization"
+  "docs: harden security groups plan review gates"
 test "$(git rev-parse HEAD^)" = "$sg_amendment_parent"
 sg_publication_gate=$(mktemp -d /private/tmp/terraform-aws-security-groups-publication.XXXXXX)
 printf '%s\n' \
@@ -158,8 +158,49 @@ and the desired direct expression does not. Any `rg` operational error fails.
 
 - [ ] **Step 3: Apply minimal neutralization before copy**
 
-With `apply_patch` under `$sg_import_root/source`, and without running a
-generator:
+Resolve and verify the mutation target without consuming prior shell state:
+
+```bash
+set -euo pipefail
+sg_branch='neutral/v6.0.0-neutral.1'
+sg_expected_sha='58d8e895915f5573767081142d063b7caf7a2b47'
+sg_amendment_parent='c86208cdcf143e84612d9a4000b053eeb08eb26a'
+sg_expected_subject='docs: harden security groups plan review gates'
+sg_current_head=$(git rev-parse HEAD)
+sg_retained_root="/private/tmp/terraform-aws-security-group-v6.0.0-$sg_expected_sha/task1-$sg_current_head"
+sg_verified_clone="$sg_retained_root/verified-upstream"
+sg_import_root="$sg_retained_root/import"
+test "$(git branch --show-current)" = "$sg_branch"
+test "$(git remote get-url origin)" = \
+  'git@github.com:joeroberts/terraform-aws-security-groups.git'
+test -z "$(git status --porcelain)"
+test "$(git log -1 --format=%s)" = "$sg_expected_subject"
+test "$(git rev-parse HEAD^)" = "$sg_amendment_parent"
+test "$sg_current_head" = "$(git rev-parse "origin/$sg_branch")"
+test "$(git -C "$sg_verified_clone" rev-parse HEAD)" = "$sg_expected_sha"
+test "$(git -C "$sg_verified_clone" rev-parse refs/tags/v6.0.0^{commit})" = \
+  "$sg_expected_sha"
+test -d "$sg_import_root/pristine"
+test -d "$sg_import_root/source"
+test -d "$sg_import_root/expected"
+test ! -e "$sg_import_root/source/.git"
+for sg_mutation_file in main.tf variables.tf wrappers/main.tf README.md CHANGELOG.md; do
+  test -f "$sg_import_root/pristine/$sg_mutation_file"
+  test -f "$sg_import_root/source/$sg_mutation_file"
+  cmp "$sg_import_root/pristine/$sg_mutation_file" \
+    "$sg_import_root/source/$sg_mutation_file"
+  printf 'APPLY_PATCH_TARGET=%s\n' \
+    "$sg_import_root/source/$sg_mutation_file"
+done
+```
+
+Expected: the fence prints five literal absolute `APPLY_PATCH_TARGET` paths
+under the verified current amendment HEAD. Copy those printed paths verbatim
+into the five `apply_patch` file headers; `apply_patch` cannot expand shell
+variables. Do not type `$sg_import_root` into a patch and do not infer or reuse
+a path from another fence.
+
+Using only those five printed absolute targets, and without running a generator:
 
 - Change `main.tf:2` to `create = var.create`.
 - Delete the complete variable block at `variables.tf:140-144`.
@@ -416,11 +457,39 @@ Initialize/apply the generator, then regenerate Terraform docs:
 
 ```bash
 set -euo pipefail
-sg_generator_root=$(mktemp -d /private/tmp/terraform-aws-security-groups-generator.XXXXXX)
+sg_generator_root="/private/tmp/terraform-aws-security-groups-generator/task2-$(git rev-parse HEAD)"
+sg_hcl_worklist="$sg_generator_root/module-hcl-files"
+sg_hcl_pristine_manifest="$sg_generator_root/module-hcl-pristine"
+sg_hcl_first_apply_manifest="$sg_generator_root/module-hcl-first-apply"
 sg_module_readmes="$sg_generator_root/module-readmes"
 sg_module_doc_dirs="$sg_generator_root/module-doc-directories"
+test ! -e "$sg_generator_root"
+mkdir -p "$sg_generator_root"
+find modules -type f -name '*.tf' | sort > "$sg_hcl_worklist"
+sg_hcl_worklist_count=$(wc -l < "$sg_hcl_worklist" | tr -d '[:space:]')
+case "$sg_hcl_worklist_count" in
+  ''|*[!0-9]*) exit 1 ;;
+esac
+test "$sg_hcl_worklist_count" = "212"
+sg_hcl_manifest_count=0
+while IFS= read -r sg_hcl_file; do
+  test -n "$sg_hcl_file"
+  sg_hcl_manifest_count=$((sg_hcl_manifest_count + 1))
+  shasum -a 256 "$sg_hcl_file"
+done < "$sg_hcl_worklist" > "$sg_hcl_pristine_manifest"
+test "$sg_hcl_manifest_count" -eq "$sg_hcl_worklist_count"
+test "$(wc -l < "$sg_hcl_pristine_manifest" | tr -d '[:space:]')" = "212"
 terraform -chdir=generate init -backend=false -input=false
 terraform -chdir=generate apply -auto-approve -input=false
+sg_hcl_manifest_count=0
+while IFS= read -r sg_hcl_file; do
+  test -n "$sg_hcl_file"
+  sg_hcl_manifest_count=$((sg_hcl_manifest_count + 1))
+  shasum -a 256 "$sg_hcl_file"
+done < "$sg_hcl_worklist" > "$sg_hcl_first_apply_manifest"
+test "$sg_hcl_manifest_count" -eq "$sg_hcl_worklist_count"
+test "$(wc -l < "$sg_hcl_first_apply_manifest" | tr -d '[:space:]')" = "212"
+cmp "$sg_hcl_pristine_manifest" "$sg_hcl_first_apply_manifest"
 find modules -mindepth 2 -maxdepth 2 -type f -name README.md | sort \
   > "$sg_module_readmes"
 test "$(wc -l < "$sg_module_readmes" | tr -d '[:space:]')" = "53"
@@ -434,7 +503,10 @@ while IFS= read -r sg_docs_dir; do
 done < "$sg_module_doc_dirs"
 ```
 
-Expected: exactly 53 module READMEs are regenerated from the modified template; generated HCL remains unchanged.
+Expected: the deterministic ignored temporary state captures all 212 generated
+module HCL hashes before the first generator apply, the first apply is
+immediately byte-stable against that pristine manifest, and exactly 53 module
+READMEs are regenerated from the modified template.
 
 - [ ] **Step 3: Update root identity and sources**
 
@@ -462,7 +534,7 @@ sg_wrapper_readmes="$sg_wrapper_root/readmes"
 find wrappers -type f -name README.md | sort > "$sg_wrapper_readmes"
 test "$(wc -l < "$sg_wrapper_readmes" | tr -d '[:space:]')" = "54"
 while IFS= read -r sg_wrapper_readme; do
-  sg_wrapper_path=$(dirname "$sg_wrapper_readme")
+  sg_wrapper_path=${sg_wrapper_readme%/README.md}
   sg_wrapper_source="git::ssh://git@github.com/joeroberts/terraform-aws-security-groups.git//$sg_wrapper_path?ref=v6.0.0-neutral.1"
   printf '%s -> %s\n' "$sg_wrapper_readme" "$sg_wrapper_source"
 done < "$sg_wrapper_readmes"
@@ -476,21 +548,40 @@ mechanical rewrite; do not change wrapper prose or HCL inputs.
 ```bash
 set -euo pipefail
 sg_generation_gate=$(mktemp -d /private/tmp/terraform-aws-security-groups-generation.XXXXXX)
-sg_hcl_worklist="$sg_generation_gate/module-hcl-files"
-sg_hcl_before_manifest="$sg_generation_gate/module-hcl-before"
-sg_hcl_after_manifest="$sg_generation_gate/module-hcl-after"
+sg_generator_root="/private/tmp/terraform-aws-security-groups-generator/task2-$(git rev-parse HEAD)"
+sg_hcl_worklist="$sg_generator_root/module-hcl-files"
+sg_hcl_pristine_manifest="$sg_generator_root/module-hcl-pristine"
+sg_hcl_pre_second_manifest="$sg_generation_gate/module-hcl-pre-second-apply"
+sg_hcl_after_manifest="$sg_generation_gate/module-hcl-after-second-apply"
 sg_module_readmes="$sg_generation_gate/module-readmes"
 sg_module_doc_dirs="$sg_generation_gate/module-doc-directories"
-find modules -type f -name '*.tf' | sort > "$sg_hcl_worklist"
+test -d "$sg_generator_root"
+test -s "$sg_hcl_worklist"
+test -s "$sg_hcl_pristine_manifest"
 test "$(wc -l < "$sg_hcl_worklist" | tr -d '[:space:]')" = "212"
+test "$(wc -l < "$sg_hcl_pristine_manifest" | tr -d '[:space:]')" = "212"
+find modules -type f -name '*.tf' | sort \
+  > "$sg_generation_gate/current-module-hcl-files"
+cmp "$sg_hcl_worklist" "$sg_generation_gate/current-module-hcl-files"
+sg_hcl_manifest_count=0
 while IFS= read -r sg_hcl_file; do
+  test -n "$sg_hcl_file"
+  sg_hcl_manifest_count=$((sg_hcl_manifest_count + 1))
   shasum -a 256 "$sg_hcl_file"
-done < "$sg_hcl_worklist" > "$sg_hcl_before_manifest"
+done < "$sg_hcl_worklist" > "$sg_hcl_pre_second_manifest"
+test "$sg_hcl_manifest_count" = "212"
+test "$(wc -l < "$sg_hcl_pre_second_manifest" | tr -d '[:space:]')" = "212"
+cmp "$sg_hcl_pristine_manifest" "$sg_hcl_pre_second_manifest"
 terraform -chdir=generate apply -auto-approve -input=false
+sg_hcl_manifest_count=0
 while IFS= read -r sg_hcl_file; do
+  test -n "$sg_hcl_file"
+  sg_hcl_manifest_count=$((sg_hcl_manifest_count + 1))
   shasum -a 256 "$sg_hcl_file"
 done < "$sg_hcl_worklist" > "$sg_hcl_after_manifest"
-cmp "$sg_hcl_before_manifest" "$sg_hcl_after_manifest"
+test "$sg_hcl_manifest_count" = "212"
+test "$(wc -l < "$sg_hcl_after_manifest" | tr -d '[:space:]')" = "212"
+cmp "$sg_hcl_pristine_manifest" "$sg_hcl_after_manifest"
 find modules -mindepth 2 -maxdepth 2 -type f -name README.md | sort \
   > "$sg_module_readmes"
 test "$(wc -l < "$sg_module_readmes" | tr -d '[:space:]')" = "53"
@@ -509,12 +600,76 @@ else
   sg_rg_status=$?
   test "$sg_rg_status" = "1"
 fi
-rg -l 'v6\.0\.0-neutral\.1' README.md modules wrappers -g README.md \
-  > "$sg_generation_gate/neutral-source-readmes"
-test "$(wc -l < "$sg_generation_gate/neutral-source-readmes" | tr -d '[:space:]')" = "108"
+sg_expected_documents="$sg_generation_gate/expected-documents"
+sg_root_source='git::ssh://git@github.com/joeroberts/terraform-aws-security-groups.git?ref=v6.0.0-neutral.1'
+sg_root_postgresql_source='git::ssh://git@github.com/joeroberts/terraform-aws-security-groups.git//modules/postgresql?ref=v6.0.0-neutral.1'
+printf 'README.md\t%s\n' "$sg_root_source" > "$sg_expected_documents"
+while IFS= read -r sg_module_readme; do
+  sg_module_path=${sg_module_readme%/README.md}
+  sg_module_name=${sg_module_path#modules/}
+  printf '%s\tgit::ssh://git@github.com/joeroberts/terraform-aws-security-groups.git//modules/%s?ref=v6.0.0-neutral.1\n' \
+    "$sg_module_readme" "$sg_module_name"
+done < "$sg_module_readmes" >> "$sg_expected_documents"
+sg_wrapper_readmes="$sg_generation_gate/wrapper-readmes"
+find wrappers -type f -name README.md | sort > "$sg_wrapper_readmes"
+test "$(wc -l < "$sg_wrapper_readmes" | tr -d '[:space:]')" = "54"
+while IFS= read -r sg_wrapper_readme; do
+  sg_wrapper_path=${sg_wrapper_readme%/README.md}
+  printf '%s\tgit::ssh://git@github.com/joeroberts/terraform-aws-security-groups.git//%s?ref=v6.0.0-neutral.1\n' \
+    "$sg_wrapper_readme" "$sg_wrapper_path"
+done < "$sg_wrapper_readmes" >> "$sg_expected_documents"
+sg_expected_document_count=$(wc -l < "$sg_expected_documents" | tr -d '[:space:]')
+test "$sg_expected_document_count" = "108"
+sg_checked_document_count=0
+sg_root_source_seen=0
+sg_root_postgresql_source_seen=0
+while IFS=$'\t' read -r sg_document sg_expected_source; do
+  test -n "$sg_document"
+  test -n "$sg_expected_source"
+  sg_checked_document_count=$((sg_checked_document_count + 1))
+  sg_source_lines="$sg_generation_gate/source-lines-$sg_checked_document_count"
+  rg -n 'source[[:space:]]*=' "$sg_document" > "$sg_source_lines"
+  test -s "$sg_source_lines"
+  sg_source_line_count=$(wc -l < "$sg_source_lines" | tr -d '[:space:]')
+  case "$sg_document" in
+    README.md) test "$sg_source_line_count" = "2" ;;
+    modules/*/README.md) test "$sg_source_line_count" = "1" ;;
+    wrappers/README.md|wrappers/*/README.md)
+      test "$sg_source_line_count" = "4"
+      ;;
+    *) exit 1 ;;
+  esac
+  sg_checked_source_count=0
+  while IFS= read -r sg_source_line; do
+    sg_checked_source_count=$((sg_checked_source_count + 1))
+    printf '%s\n' "$sg_source_line" | \
+      sed -nE 's/.*source[[:space:]]*=[[:space:]]*"([^"]+)".*/\1/p' \
+      > "$sg_generation_gate/source-value"
+    test "$(wc -l < "$sg_generation_gate/source-value" | tr -d '[:space:]')" = "1"
+    IFS= read -r sg_actual_source < "$sg_generation_gate/source-value"
+    if test "$sg_document" = "README.md"; then
+      case "$sg_actual_source" in
+        "$sg_root_source") sg_root_source_seen=1 ;;
+        "$sg_root_postgresql_source") sg_root_postgresql_source_seen=1 ;;
+        *) exit 1 ;;
+      esac
+    else
+      test "$sg_actual_source" = "$sg_expected_source"
+    fi
+  done < "$sg_source_lines"
+  test "$sg_checked_source_count" -eq "$sg_source_line_count"
+done < "$sg_expected_documents"
+test "$sg_checked_document_count" -eq "$sg_expected_document_count"
+test "$sg_root_source_seen" = "1"
+test "$sg_root_postgresql_source_seen" = "1"
 ```
 
-Expected: generator changes no module HCL, all 108 consumer documents use the reserved neutral source, and docs are re-injected after generator execution.
+Expected: both later HCL manifests remain byte-identical to the retained
+pre-first-apply 212-file manifest. All 108 expected documents are derived from
+their paths and every active/commented `source =` value equals its exact target
+repository, exact root/module/wrapper subdirectory, and exact reserved ref; the
+root README contains both its root and PostgreSQL sources. A correct tag paired
+with a wrong subpath fails.
 
 - [ ] **Step 6: Commit and push documentation generation**
 
@@ -589,8 +744,61 @@ else
   test "$sg_rg_status" = "1"
 fi
 sg_workflow_gate=$(mktemp -d /private/tmp/terraform-aws-security-groups-workflows.XXXXXX)
-rg -l '^permissions:' .github/workflows > "$sg_workflow_gate/permissions"
-test "$(wc -l < "$sg_workflow_gate/permissions" | tr -d '[:space:]')" = "6"
+sg_workflow_files="$sg_workflow_gate/workflow-files"
+find .github/workflows -maxdepth 1 -type f | sort > "$sg_workflow_files"
+test "$(wc -l < "$sg_workflow_files" | tr -d '[:space:]')" = "6"
+sed -nE 's/^[[:space:]]*-[[:space:]]*(uses:.*)$/\1/p; s/^[[:space:]]+(uses:.*)$/\1/p' \
+  .github/workflows/* | sort > "$sg_workflow_gate/actual-actions"
+printf '%s\n' \
+  'uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5' \
+  'uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5' \
+  'uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5' \
+  'uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5' \
+  'uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5' \
+  'uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6' \
+  'uses: actions/stale@1e223db275d687790206a7acac4d1a11bd6fe629 # v10' \
+  'uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1' \
+  'uses: clowdhaus/terraform-composite-actions/directories@462243b714d762cbcac6732098e9fdb4ab236cb7 # v1.14.0' \
+  'uses: clowdhaus/terraform-composite-actions/pre-commit@462243b714d762cbcac6732098e9fdb4ab236cb7 # v1.14.0' \
+  'uses: clowdhaus/terraform-composite-actions/pre-commit@462243b714d762cbcac6732098e9fdb4ab236cb7 # v1.14.0' \
+  'uses: clowdhaus/terraform-composite-actions/pre-commit@462243b714d762cbcac6732098e9fdb4ab236cb7 # v1.14.0' \
+  'uses: clowdhaus/terraform-min-max@a86951cbe89f4d15caec805f36aa1dd68863ae32 # v2.1.0' \
+  'uses: clowdhaus/terraform-min-max@a86951cbe89f4d15caec805f36aa1dd68863ae32 # v2.1.0' \
+  'uses: cycjimmy/semantic-release-action@ba330626c4750c19d8299de843f05c7aa5574f62 # v5 branch; tag v5.0.2' \
+  'uses: dessant/lock-threads@1bf7ec25051fe7c00bdd17e6a7cf3d7bfb7dc771 # v5' \
+  'uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3' \
+  'uses: jaxxstorm/action-install-gh-release@6096f2a2bbfee498ced520b6922ac2c06e990ed2 # v2.1.0' \
+  'uses: jaxxstorm/action-install-gh-release@6096f2a2bbfee498ced520b6922ac2c06e990ed2 # v2.1.0' \
+  | sort > "$sg_workflow_gate/expected-actions"
+test "$(wc -l < "$sg_workflow_gate/actual-actions" | tr -d '[:space:]')" = "19"
+cmp "$sg_workflow_gate/expected-actions" "$sg_workflow_gate/actual-actions"
+while IFS= read -r sg_workflow_file; do
+  test "$(rg -c '^permissions:$' "$sg_workflow_file")" = "1"
+  awk '
+    $0 == "permissions:" { capture = 1; print; next }
+    capture && /^  [a-z-]+: (read|write)$/ { print; next }
+    capture { exit }
+  ' "$sg_workflow_file" > "$sg_workflow_gate/actual-permissions"
+  case "$(basename "$sg_workflow_file")" in
+    generate-modules.yml|pre-commit.yml|release.yml)
+      printf '%s\n' 'permissions:' '  contents: read' \
+        > "$sg_workflow_gate/expected-permissions"
+      ;;
+    pr-title.yml)
+      printf '%s\n' 'permissions:' '  pull-requests: read' \
+        > "$sg_workflow_gate/expected-permissions"
+      ;;
+    lock.yml|stale-actions.yaml)
+      printf '%s\n' 'permissions:' '  issues: write' '  pull-requests: write' \
+        > "$sg_workflow_gate/expected-permissions"
+      ;;
+    *) exit 1 ;;
+  esac
+  cmp "$sg_workflow_gate/expected-permissions" \
+    "$sg_workflow_gate/actual-permissions"
+done < "$sg_workflow_files"
+rg -Fxq "    if: github.repository_owner == 'terraform-aws-modules'" \
+  .github/workflows/release.yml
 go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
 git diff --check
 git add .github/workflows
@@ -615,22 +823,50 @@ git push
 ```bash
 set -euo pipefail
 sg_verification_root=$(mktemp -d /private/tmp/terraform-aws-security-groups-verification.XXXXXX)
-sg_hcl_worklist="$sg_verification_root/module-hcl-files"
+git log --all --format='%H%x09%s' > "$sg_verification_root/history-subjects"
+rg $'\tfeat: import neutral security group module v6\.0\.0$' \
+  "$sg_verification_root/history-subjects" \
+  > "$sg_verification_root/import-commit"
+test "$(wc -l < "$sg_verification_root/import-commit" | tr -d '[:space:]')" = "1"
+IFS=$'\t' read -r sg_import_head sg_import_subject \
+  < "$sg_verification_root/import-commit"
+test "$sg_import_subject" = "feat: import neutral security group module v6.0.0"
+test "$(git cat-file -t "$sg_import_head")" = "commit"
+sg_generator_root="/private/tmp/terraform-aws-security-groups-generator/task2-$sg_import_head"
+sg_hcl_worklist="$sg_generator_root/module-hcl-files"
+sg_hcl_pristine_manifest="$sg_generator_root/module-hcl-pristine"
 sg_hcl_before_manifest="$sg_verification_root/module-hcl-before"
 sg_hcl_after_manifest="$sg_verification_root/module-hcl-after"
 sg_docs_files="$sg_verification_root/docs-files"
 sg_docs_worklist="$sg_verification_root/docs-directories"
-find modules -type f -name '*.tf' | sort > "$sg_hcl_worklist"
+test -d "$sg_generator_root"
+test -s "$sg_hcl_worklist"
+test -s "$sg_hcl_pristine_manifest"
 test "$(wc -l < "$sg_hcl_worklist" | tr -d '[:space:]')" = "212"
+test "$(wc -l < "$sg_hcl_pristine_manifest" | tr -d '[:space:]')" = "212"
+find modules -type f -name '*.tf' | sort \
+  > "$sg_verification_root/current-module-hcl-files"
+cmp "$sg_hcl_worklist" "$sg_verification_root/current-module-hcl-files"
+sg_hcl_manifest_count=0
 while IFS= read -r sg_hcl_file; do
+  test -n "$sg_hcl_file"
+  sg_hcl_manifest_count=$((sg_hcl_manifest_count + 1))
   shasum -a 256 "$sg_hcl_file"
 done < "$sg_hcl_worklist" > "$sg_hcl_before_manifest"
+test "$sg_hcl_manifest_count" = "212"
+test "$(wc -l < "$sg_hcl_before_manifest" | tr -d '[:space:]')" = "212"
+cmp "$sg_hcl_pristine_manifest" "$sg_hcl_before_manifest"
 terraform -chdir=generate init -backend=false -input=false
 terraform -chdir=generate apply -auto-approve -input=false
+sg_hcl_manifest_count=0
 while IFS= read -r sg_hcl_file; do
+  test -n "$sg_hcl_file"
+  sg_hcl_manifest_count=$((sg_hcl_manifest_count + 1))
   shasum -a 256 "$sg_hcl_file"
 done < "$sg_hcl_worklist" > "$sg_hcl_after_manifest"
-cmp "$sg_hcl_before_manifest" "$sg_hcl_after_manifest"
+test "$sg_hcl_manifest_count" = "212"
+test "$(wc -l < "$sg_hcl_after_manifest" | tr -d '[:space:]')" = "212"
+cmp "$sg_hcl_pristine_manifest" "$sg_hcl_after_manifest"
 rg -l '<!-- BEGIN_TF_DOCS -->' -g README.md > "$sg_docs_files"
 test "$(wc -l < "$sg_docs_files" | tr -d '[:space:]')" = "55"
 while IFS= read -r sg_docs_file; do
@@ -645,7 +881,10 @@ git diff --exit-code
 terraform fmt -check -recursive
 ```
 
-Expected: catalog regeneration changes no HCL, docs are stable after regeneration, and formatting passes.
+Expected: the uniquely identified import commit resolves the deterministic Task
+2 state, the current and post-apply 212-file manifests both equal the retained
+pre-first-apply manifest, docs are stable after regeneration, and formatting
+passes.
 
 - [ ] **Step 2: Run inherited TFLint rules**
 
@@ -777,6 +1016,7 @@ state or import upstream Git history.
 
 ```bash
 set -euo pipefail
+sg_final_gate=$(mktemp -d /private/tmp/terraform-aws-security-groups-final.XXXXXX)
 sg_notice='Modified by joeroberts/terraform-aws-security-groups on 2026-08-12; see UPSTREAM.md.'
 for sg_notice_file in main.tf variables.tf wrappers/main.tf README.md CHANGELOG.md \
   generate/templates/README.md.tftpl modules/*/README.md wrappers/README.md \
@@ -801,10 +1041,73 @@ else
   sg_rg_status=$?
   test "$sg_rg_status" = "1"
 fi
+sg_workflow_files="$sg_final_gate/workflow-files"
+find .github/workflows -maxdepth 1 -type f | sort > "$sg_workflow_files"
+test "$(wc -l < "$sg_workflow_files" | tr -d '[:space:]')" = "6"
+sed -nE 's/^[[:space:]]*-[[:space:]]*(uses:.*)$/\1/p; s/^[[:space:]]+(uses:.*)$/\1/p' \
+  .github/workflows/* > "$sg_final_gate/all-actions"
+test "$(wc -l < "$sg_final_gate/all-actions" | tr -d '[:space:]')" = "19"
+sg_require_action() {
+  sg_required_action=$1
+  sg_required_count=$2
+  sg_action_matches="$sg_final_gate/action-matches"
+  rg -Fx "$sg_required_action" "$sg_final_gate/all-actions" \
+    > "$sg_action_matches"
+  test "$(wc -l < "$sg_action_matches" | tr -d '[:space:]')" = \
+    "$sg_required_count"
+}
+sg_require_action \
+  'uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5' 5
+sg_require_action \
+  'uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6' 1
+sg_require_action \
+  'uses: actions/stale@1e223db275d687790206a7acac4d1a11bd6fe629 # v10' 1
+sg_require_action \
+  'uses: amannn/action-semantic-pull-request@48f256284bd46cdaab1048c3721360e808335d50 # v6.1.1' 1
+sg_require_action \
+  'uses: clowdhaus/terraform-composite-actions/directories@462243b714d762cbcac6732098e9fdb4ab236cb7 # v1.14.0' 1
+sg_require_action \
+  'uses: clowdhaus/terraform-composite-actions/pre-commit@462243b714d762cbcac6732098e9fdb4ab236cb7 # v1.14.0' 3
+sg_require_action \
+  'uses: clowdhaus/terraform-min-max@a86951cbe89f4d15caec805f36aa1dd68863ae32 # v2.1.0' 2
+sg_require_action \
+  'uses: cycjimmy/semantic-release-action@ba330626c4750c19d8299de843f05c7aa5574f62 # v5 branch; tag v5.0.2' 1
+sg_require_action \
+  'uses: dessant/lock-threads@1bf7ec25051fe7c00bdd17e6a7cf3d7bfb7dc771 # v5' 1
+sg_require_action \
+  'uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3' 1
+sg_require_action \
+  'uses: jaxxstorm/action-install-gh-release@6096f2a2bbfee498ced520b6922ac2c06e990ed2 # v2.1.0' 2
+while IFS= read -r sg_workflow_file; do
+  test "$(rg -c '^permissions:$' "$sg_workflow_file")" = "1"
+  awk '
+    $0 == "permissions:" { capture = 1; print; next }
+    capture && /^  [a-z-]+: (read|write)$/ { print; next }
+    capture { exit }
+  ' "$sg_workflow_file" > "$sg_final_gate/actual-permissions"
+  case "$(basename "$sg_workflow_file")" in
+    generate-modules.yml|pre-commit.yml|release.yml)
+      printf '%s\n' 'permissions:' '  contents: read' \
+        > "$sg_final_gate/expected-permissions"
+      ;;
+    pr-title.yml)
+      printf '%s\n' 'permissions:' '  pull-requests: read' \
+        > "$sg_final_gate/expected-permissions"
+      ;;
+    lock.yml|stale-actions.yaml)
+      printf '%s\n' 'permissions:' '  issues: write' '  pull-requests: write' \
+        > "$sg_final_gate/expected-permissions"
+      ;;
+    *) exit 1 ;;
+  esac
+  cmp "$sg_final_gate/expected-permissions" \
+    "$sg_final_gate/actual-permissions"
+done < "$sg_workflow_files"
+rg -Fxq "    if: github.repository_owner == 'terraform-aws-modules'" \
+  .github/workflows/release.yml
 go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
 sg_neutral_pattern="$(printf '%s|%s|%s|%s|%s|%s|%s' \
   'put''in' 'khuy''lo' 'ukr''ain' 'russ''ia' 'bela''rus' 'cri''mea' 'don''bas')"
-sg_final_gate=$(mktemp -d /private/tmp/terraform-aws-security-groups-final.XXXXXX)
 sg_scan_worklist="$sg_final_gate/scan-files"
 find . \( -path './.git' -o -path './.superpowers' \) -prune -o \
   -type d -name .terraform -prune -o -type f -print0 > "$sg_scan_worklist"
@@ -878,17 +1181,199 @@ and deferred tag. Run:
 
 ```bash
 set -euo pipefail
-gh pr create --repo joeroberts/terraform-aws-security-groups \
+sg_branch='neutral/v6.0.0-neutral.1'
+sg_repo='joeroberts/terraform-aws-security-groups'
+sg_pr_body='/private/tmp/terraform-aws-security-groups-pr-body.md'
+sg_pr_gate=$(mktemp -d /private/tmp/terraform-aws-security-groups-pr.XXXXXX)
+test "$(git branch --show-current)" = "$sg_branch"
+test "$(git remote get-url origin)" = \
+  'git@github.com:joeroberts/terraform-aws-security-groups.git'
+test -z "$(git status --porcelain)"
+git fetch origin "$sg_branch"
+sg_verified_head=$(git rev-parse HEAD)
+printf '%s\n' "$sg_verified_head" > "$sg_pr_gate/verified-head"
+test "$sg_verified_head" = "$(git rev-parse '@{upstream}')"
+test "$sg_verified_head" = "$(git rev-parse "origin/$sg_branch")"
+git merge-base --is-ancestor HEAD "origin/$sg_branch"
+git merge-base --is-ancestor "origin/$sg_branch" HEAD
+git tag -l v6.0.0-neutral.1 > "$sg_pr_gate/local-reserved-tag"
+test ! -s "$sg_pr_gate/local-reserved-tag"
+git ls-remote --tags origin refs/tags/v6.0.0-neutral.1 \
+  > "$sg_pr_gate/remote-reserved-tag"
+test ! -s "$sg_pr_gate/remote-reserved-tag"
+test -s "$sg_pr_body"
+gh pr list --repo "$sg_repo" --head "$sg_branch" --state all \
+  --json number --jq 'length' > "$sg_pr_gate/preexisting-count"
+IFS= read -r sg_preexisting_count < "$sg_pr_gate/preexisting-count"
+test "$sg_preexisting_count" = "0"
+gh pr create --repo "$sg_repo" \
   --base main --head neutral/v6.0.0-neutral.1 \
   --title "feat: add neutral security group module v6.0.0" \
-  --body-file /private/tmp/terraform-aws-security-groups-pr-body.md
-gh pr view --repo joeroberts/terraform-aws-security-groups \
-  --json url,state,baseRefName,headRefName,commits,statusCheckRollup
+  --body-file "$sg_pr_body" > "$sg_pr_gate/create-output"
+rg -o 'https://github\.com/joeroberts/terraform-aws-security-groups/pull/[0-9]+' \
+  "$sg_pr_gate/create-output" > "$sg_pr_gate/created-url"
+test "$(wc -l < "$sg_pr_gate/created-url" | tr -d '[:space:]')" = "1"
+IFS= read -r sg_pr_url < "$sg_pr_gate/created-url"
+printf '%s\n' "$sg_pr_url" | sed -nE 's#^.*/pull/([0-9]+)$#\1#p' \
+  > "$sg_pr_gate/created-number"
+test "$(wc -l < "$sg_pr_gate/created-number" | tr -d '[:space:]')" = "1"
+IFS= read -r sg_pr_number < "$sg_pr_gate/created-number"
+case "$sg_pr_number" in
+  ''|*[!0-9]*) exit 1 ;;
+esac
+gh pr view "$sg_pr_number" --repo "$sg_repo" \
+  --json url,number,state,baseRefName,headRefName,commits \
+  --jq '[.url, (.number|tostring), .state, .baseRefName, .headRefName, .commits[-1].oid] | @tsv' \
+  > "$sg_pr_gate/readback"
+test "$(wc -l < "$sg_pr_gate/readback" | tr -d '[:space:]')" = "1"
+IFS=$'\t' read -r sg_read_url sg_read_number sg_read_state sg_read_base \
+  sg_read_head sg_read_oid < "$sg_pr_gate/readback"
+test "$sg_read_url" = "$sg_pr_url"
+test "$sg_read_url" = \
+  "https://github.com/joeroberts/terraform-aws-security-groups/pull/$sg_pr_number"
+test "$sg_read_number" = "$sg_pr_number"
+test "$sg_read_state" = "OPEN"
+test "$sg_read_base" = "main"
+test "$sg_read_head" = "$sg_branch"
+test "$sg_read_oid" = "$sg_verified_head"
+IFS= read -r sg_saved_verified_head < "$sg_pr_gate/verified-head"
+test "$(git rev-parse HEAD)" = "$sg_saved_verified_head"
 ```
+
+Expected: the exact synchronized and clean verified HEAD has no reserved tag;
+the create response yields one exact PR URL/number; and readback by that number
+(never contextual branch inference) proves an open `main` PR from the exact
+neutral branch whose last commit is the same verified HEAD.
 
 - [ ] **Step 3: Update the IAM campaign journal and continue**
 
-Record the PR URL, branch, final SHA, 110-root/generator evidence, and `tag
-deferred` in the IAM journal. Commit `docs: record Security Groups campaign
-milestone`, push the IAM neutral branch, then start the RDS plan without waiting
-for merge.
+Resolve and print the exact cross-repository journal line from explicit
+Security Groups PR evidence while proving the known IAM breaker state:
+
+```bash
+set -euo pipefail
+iam_worktree='/Users/jroberts/Documents/dev/joeroberts/terraform/.worktrees/terraform-aws-iam/v6.8.0-neutral.1'
+iam_repo='joeroberts/terraform-aws-iam'
+iam_branch='neutral/v6.8.0-neutral.1'
+iam_expected_head='0c3f4f5af53e89e6f7ee477d80ebe65283e43014'
+iam_journal="$iam_worktree/docs/neutralization/CAMPAIGN-STATUS.md"
+sg_repo='joeroberts/terraform-aws-security-groups'
+sg_branch='neutral/v6.0.0-neutral.1'
+iam_gate=$(mktemp -d /private/tmp/terraform-aws-iam-sg-journal.XXXXXX)
+test -d "$iam_worktree"
+test -f "$iam_journal"
+test "$(git -C "$iam_worktree" branch --show-current)" = "$iam_branch"
+test "$(git -C "$iam_worktree" remote get-url origin)" = \
+  'git@github.com:joeroberts/terraform-aws-iam.git'
+test "$(git -C "$iam_worktree" rev-parse HEAD)" = "$iam_expected_head"
+test "$(git -C "$iam_worktree" log -1 --format=%s)" = \
+  'docs: record IAM neutralization breaker'
+test -z "$(git -C "$iam_worktree" status --porcelain)"
+git -C "$iam_worktree" fetch origin "$iam_branch"
+test "$iam_expected_head" = \
+  "$(git -C "$iam_worktree" rev-parse "origin/$iam_branch")"
+rg -Fxq '# IAM neutral derivative execution blocker' \
+  "$iam_worktree/docs/superpowers/status/2026-08-12-iam-neutral-derivative-blocker.md"
+rg -Fxq -- '- IAM: blocked after the five-round amendment breaker; see [BLOCKER.md](BLOCKER.md).' \
+  "$iam_journal"
+rg -Fxq -- '- IAM has no PR, tag, or release.' "$iam_journal"
+gh pr list --repo "$sg_repo" --head "$sg_branch" --state open \
+  --json number --jq '.[].number' > "$iam_gate/sg-pr-numbers"
+test "$(wc -l < "$iam_gate/sg-pr-numbers" | tr -d '[:space:]')" = "1"
+IFS= read -r sg_pr_number < "$iam_gate/sg-pr-numbers"
+case "$sg_pr_number" in
+  ''|*[!0-9]*) exit 1 ;;
+esac
+gh pr view "$sg_pr_number" --repo "$sg_repo" \
+  --json url,state,baseRefName,headRefName,commits \
+  --jq '[.url, .state, .baseRefName, .headRefName, .commits[-1].oid] | @tsv' \
+  > "$iam_gate/sg-pr-readback"
+test "$(wc -l < "$iam_gate/sg-pr-readback" | tr -d '[:space:]')" = "1"
+IFS=$'\t' read -r sg_pr_url sg_pr_state sg_pr_base sg_pr_head sg_pr_oid \
+  < "$iam_gate/sg-pr-readback"
+test "$sg_pr_state" = "OPEN"
+test "$sg_pr_base" = "main"
+test "$sg_pr_head" = "$sg_branch"
+test -n "$sg_pr_oid"
+printf '%s\n' \
+  "- Security Groups: PR open — branch \`$sg_branch\`; commit \`$sg_pr_oid\`; PR [#$sg_pr_number]($sg_pr_url); generator HCL stable; 110 Terraform roots validated; tag deferred." \
+  > "$iam_gate/expected-journal-line"
+printf 'APPLY_PATCH_TARGET=%s\n' "$iam_journal"
+printf '%s' 'SECURITY_GROUPS_JOURNAL_LINE='
+sed -n '1p' "$iam_gate/expected-journal-line"
+```
+
+Use `apply_patch` with the printed literal absolute target
+`/Users/jroberts/Documents/dev/joeroberts/terraform/.worktrees/terraform-aws-iam/v6.8.0-neutral.1/docs/neutralization/CAMPAIGN-STATUS.md`.
+Add the printed Security Groups line, change the exact `Next` line to
+`- Next: RDS.`, and preserve both IAM blocker statements verbatim; do not claim
+that IAM is implemented or has a PR.
+
+Then verify and publish only that IAM journal mutation, with every repository
+operation explicitly rooted:
+
+```bash
+set -euo pipefail
+iam_worktree='/Users/jroberts/Documents/dev/joeroberts/terraform/.worktrees/terraform-aws-iam/v6.8.0-neutral.1'
+iam_repo='joeroberts/terraform-aws-iam'
+iam_branch='neutral/v6.8.0-neutral.1'
+iam_expected_head='0c3f4f5af53e89e6f7ee477d80ebe65283e43014'
+iam_journal_rel='docs/neutralization/CAMPAIGN-STATUS.md'
+iam_journal="$iam_worktree/$iam_journal_rel"
+sg_repo='joeroberts/terraform-aws-security-groups'
+sg_branch='neutral/v6.0.0-neutral.1'
+iam_gate=$(mktemp -d /private/tmp/terraform-aws-iam-sg-journal.XXXXXX)
+test "$(git -C "$iam_worktree" branch --show-current)" = "$iam_branch"
+test "$(git -C "$iam_worktree" remote get-url origin)" = \
+  'git@github.com:joeroberts/terraform-aws-iam.git'
+test "$(git -C "$iam_worktree" rev-parse HEAD)" = "$iam_expected_head"
+gh pr list --repo "$sg_repo" --head "$sg_branch" --state open \
+  --json number --jq '.[].number' > "$iam_gate/sg-pr-numbers"
+test "$(wc -l < "$iam_gate/sg-pr-numbers" | tr -d '[:space:]')" = "1"
+IFS= read -r sg_pr_number < "$iam_gate/sg-pr-numbers"
+gh pr view "$sg_pr_number" --repo "$sg_repo" \
+  --json url,state,baseRefName,headRefName,commits \
+  --jq '[.url, .state, .baseRefName, .headRefName, .commits[-1].oid] | @tsv' \
+  > "$iam_gate/sg-pr-readback"
+IFS=$'\t' read -r sg_pr_url sg_pr_state sg_pr_base sg_pr_head sg_pr_oid \
+  < "$iam_gate/sg-pr-readback"
+test "$sg_pr_state" = "OPEN"
+test "$sg_pr_base" = "main"
+test "$sg_pr_head" = "$sg_branch"
+printf '%s\n' \
+  "- Security Groups: PR open — branch \`$sg_branch\`; commit \`$sg_pr_oid\`; PR [#$sg_pr_number]($sg_pr_url); generator HCL stable; 110 Terraform roots validated; tag deferred." \
+  > "$iam_gate/expected-journal-line"
+rg -Fxq -f "$iam_gate/expected-journal-line" "$iam_journal"
+rg -Fxq -- '- IAM: blocked after the five-round amendment breaker; see [BLOCKER.md](BLOCKER.md).' \
+  "$iam_journal"
+rg -Fxq -- '- IAM has no PR, tag, or release.' "$iam_journal"
+rg -Fxq -- '- Next: RDS.' "$iam_journal"
+if rg -n '^- IAM:.*(PR open|implemented|complete)' "$iam_journal"; then
+  exit 1
+else
+  iam_rg_status=$?
+  test "$iam_rg_status" = "1"
+fi
+git -C "$iam_worktree" diff --name-only > "$iam_gate/changed-paths"
+test "$(wc -l < "$iam_gate/changed-paths" | tr -d '[:space:]')" = "1"
+rg -Fxq "$iam_journal_rel" "$iam_gate/changed-paths"
+git -C "$iam_worktree" diff --check -- "$iam_journal_rel"
+git -C "$iam_worktree" add -- "$iam_journal_rel"
+git -C "$iam_worktree" diff --cached --name-only \
+  > "$iam_gate/staged-paths"
+test "$(wc -l < "$iam_gate/staged-paths" | tr -d '[:space:]')" = "1"
+rg -Fxq "$iam_journal_rel" "$iam_gate/staged-paths"
+git -C "$iam_worktree" commit -m \
+  'docs: record Security Groups campaign milestone'
+git -C "$iam_worktree" push origin "HEAD:refs/heads/$iam_branch"
+git -C "$iam_worktree" fetch origin "$iam_branch"
+test "$(git -C "$iam_worktree" rev-parse HEAD)" = \
+  "$(git -C "$iam_worktree" rev-parse "origin/$iam_branch")"
+test -z "$(git -C "$iam_worktree" status --porcelain)"
+```
+
+Expected: only the explicit IAM campaign journal is committed and normally
+pushed in the IAM repository. IAM remains accurately recorded as blocked with
+no PR/tag/release, Security Groups is recorded from numbered PR readback, and
+execution may proceed to RDS without any command implicitly targeting the
+Security Groups worktree.

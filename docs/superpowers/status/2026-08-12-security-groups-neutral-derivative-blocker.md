@@ -3,6 +3,12 @@
 Status: resolved by authorization amendment on 2026-08-12; source import has
 not started.
 
+Review fix round 1 of 5 is incorporated. It closes the remaining executable
+plan gaps for self-contained mutation target resolution, pre-first-generator
+HCL baselining, exact per-document source mapping, numbered PR creation/readback,
+explicit IAM cross-repository journaling, and exact workflow action/permission
+verification.
+
 - Branch: `neutral/v6.0.0-neutral.1`
 - Approved upstream: `terraform-aws-modules/terraform-aws-security-group`, tag
   `v6.0.0`, commit `58d8e895915f5573767081142d063b7caf7a2b47`.
