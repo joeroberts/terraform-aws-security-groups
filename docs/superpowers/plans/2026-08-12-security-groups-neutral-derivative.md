@@ -58,7 +58,7 @@
 ### Task 1: Sanitized Root Import
 
 **Required resumption gate:** Commit this plan/status amendment as
-`docs: harden security groups plan review gates` and normally push it
+`docs: close security groups round two gates` and normally push it
 to `neutral/v6.0.0-neutral.1` without force before running any Task 1 source
 command. Task 1 itself proves that exact documentation-only commit is the clean,
 synchronized branch tip.
@@ -78,7 +78,7 @@ synchronized branch tip.
 set -euo pipefail
 sg_branch='neutral/v6.0.0-neutral.1'
 sg_expected_sha='58d8e895915f5573767081142d063b7caf7a2b47'
-sg_amendment_parent='c86208cdcf143e84612d9a4000b053eeb08eb26a'
+sg_amendment_parent='6fcab69d2ddccfc3911ea2a65db6f3c3c86a95a1'
 sg_retained_root="/private/tmp/terraform-aws-security-group-v6.0.0-$sg_expected_sha/task1-$(git rev-parse HEAD)"
 sg_verified_clone="$sg_retained_root/verified-upstream"
 sg_import_root="$sg_retained_root/import"
@@ -86,7 +86,7 @@ test "$(git branch --show-current)" = "neutral/v6.0.0-neutral.1"
 test "$(git remote get-url origin)" = "git@github.com:joeroberts/terraform-aws-security-groups.git"
 test -z "$(git status --porcelain)"
 test "$(git log -1 --format=%s)" = \
-  "docs: harden security groups plan review gates"
+  "docs: close security groups round two gates"
 test "$(git rev-parse HEAD^)" = "$sg_amendment_parent"
 sg_publication_gate=$(mktemp -d /private/tmp/terraform-aws-security-groups-publication.XXXXXX)
 printf '%s\n' \
@@ -164,8 +164,8 @@ Resolve and verify the mutation target without consuming prior shell state:
 set -euo pipefail
 sg_branch='neutral/v6.0.0-neutral.1'
 sg_expected_sha='58d8e895915f5573767081142d063b7caf7a2b47'
-sg_amendment_parent='c86208cdcf143e84612d9a4000b053eeb08eb26a'
-sg_expected_subject='docs: harden security groups plan review gates'
+sg_amendment_parent='6fcab69d2ddccfc3911ea2a65db6f3c3c86a95a1'
+sg_expected_subject='docs: close security groups round two gates'
 sg_current_head=$(git rev-parse HEAD)
 sg_retained_root="/private/tmp/terraform-aws-security-group-v6.0.0-$sg_expected_sha/task1-$sg_current_head"
 sg_verified_clone="$sg_retained_root/verified-upstream"
@@ -459,6 +459,7 @@ Initialize/apply the generator, then regenerate Terraform docs:
 set -euo pipefail
 sg_generator_root="/private/tmp/terraform-aws-security-groups-generator/task2-$(git rev-parse HEAD)"
 sg_hcl_worklist="$sg_generator_root/module-hcl-files"
+sg_hcl_first_apply_worklist="$sg_generator_root/module-hcl-first-apply-files"
 sg_hcl_pristine_manifest="$sg_generator_root/module-hcl-pristine"
 sg_hcl_first_apply_manifest="$sg_generator_root/module-hcl-first-apply"
 sg_module_readmes="$sg_generator_root/module-readmes"
@@ -481,6 +482,14 @@ test "$sg_hcl_manifest_count" -eq "$sg_hcl_worklist_count"
 test "$(wc -l < "$sg_hcl_pristine_manifest" | tr -d '[:space:]')" = "212"
 terraform -chdir=generate init -backend=false -input=false
 terraform -chdir=generate apply -auto-approve -input=false
+find modules -type f -name '*.tf' | sort > "$sg_hcl_first_apply_worklist"
+sg_hcl_first_apply_worklist_count=$(wc -l \
+  < "$sg_hcl_first_apply_worklist" | tr -d '[:space:]')
+case "$sg_hcl_first_apply_worklist_count" in
+  ''|*[!0-9]*) exit 1 ;;
+esac
+test "$sg_hcl_first_apply_worklist_count" = "212"
+cmp "$sg_hcl_worklist" "$sg_hcl_first_apply_worklist"
 sg_hcl_manifest_count=0
 while IFS= read -r sg_hcl_file; do
   test -n "$sg_hcl_file"
@@ -503,10 +512,13 @@ while IFS= read -r sg_docs_dir; do
 done < "$sg_module_doc_dirs"
 ```
 
-Expected: the deterministic ignored temporary state captures all 212 generated
-module HCL hashes before the first generator apply, the first apply is
-immediately byte-stable against that pristine manifest, and exactly 53 module
-READMEs are regenerated from the modified template.
+Expected: the deterministic ignored temporary state captures the exact 212-path
+module HCL worklist and hashes before the first generator apply. Immediately
+after that first apply, a freshly produced worklist must still contain exactly
+212 paths and be byte-identical to the retained worklist before any content is
+hashed; added or removed HCL paths fail at this point. The retained paths are
+then byte-stable against the pristine manifest, and exactly 53 module READMEs
+are regenerated from the modified template.
 
 - [ ] **Step 3: Update root identity and sources**
 
@@ -797,8 +809,45 @@ while IFS= read -r sg_workflow_file; do
   cmp "$sg_workflow_gate/expected-permissions" \
     "$sg_workflow_gate/actual-permissions"
 done < "$sg_workflow_files"
-rg -Fxq "    if: github.repository_owner == 'terraform-aws-modules'" \
-  .github/workflows/release.yml
+ruby -e 'require "yaml"'
+ruby - "${sg_workflow_files}" <<'RUBY'
+require "yaml"
+
+expected_permissions = {
+  "generate-modules.yml" => { "contents" => "read" },
+  "lock.yml" => { "issues" => "write", "pull-requests" => "write" },
+  "pr-title.yml" => { "pull-requests" => "read" },
+  "pre-commit.yml" => { "contents" => "read" },
+  "release.yml" => { "contents" => "read" },
+  "stale-actions.yaml" => { "issues" => "write", "pull-requests" => "write" },
+}.freeze
+release_guard = "github.repository_owner == 'terraform-aws-modules'"
+workflow_list = ARGV.fetch(0)
+files = File.readlines(workflow_list, chomp: true)
+abort "workflow count" unless files.length == 6
+
+files.each do |path|
+  name = File.basename(path)
+  document = YAML.safe_load(File.read(path), aliases: false)
+  abort "#{name}: YAML root" unless document.is_a?(Hash)
+  abort "#{name}: exact top permissions" unless
+    document["permissions"] == expected_permissions.fetch(name)
+  jobs = document["jobs"]
+  abort "#{name}: jobs map" unless jobs.is_a?(Hash) && !jobs.empty?
+  jobs.each do |job_name, job|
+    abort "#{name}: #{job_name} job map" unless job.is_a?(Hash)
+    abort "#{name}: #{job_name} job-level permissions forbidden" if
+      job.key?("permissions")
+  end
+  if name == "release.yml"
+    abort "release.yml: exact release job" unless jobs.keys == ["release"]
+    abort "release.yml: release guard" unless jobs.fetch("release")["if"] == release_guard
+  else
+    abort "#{name}: misplaced release guard" if
+      jobs.values.any? { |job| job["if"] == release_guard }
+  end
+end
+RUBY
 go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
 git diff --check
 git add .github/workflows
@@ -1103,8 +1152,45 @@ while IFS= read -r sg_workflow_file; do
   cmp "$sg_final_gate/expected-permissions" \
     "$sg_final_gate/actual-permissions"
 done < "$sg_workflow_files"
-rg -Fxq "    if: github.repository_owner == 'terraform-aws-modules'" \
-  .github/workflows/release.yml
+ruby -e 'require "yaml"'
+ruby - "${sg_workflow_files}" <<'RUBY'
+require "yaml"
+
+expected_permissions = {
+  "generate-modules.yml" => { "contents" => "read" },
+  "lock.yml" => { "issues" => "write", "pull-requests" => "write" },
+  "pr-title.yml" => { "pull-requests" => "read" },
+  "pre-commit.yml" => { "contents" => "read" },
+  "release.yml" => { "contents" => "read" },
+  "stale-actions.yaml" => { "issues" => "write", "pull-requests" => "write" },
+}.freeze
+release_guard = "github.repository_owner == 'terraform-aws-modules'"
+workflow_list = ARGV.fetch(0)
+files = File.readlines(workflow_list, chomp: true)
+abort "workflow count" unless files.length == 6
+
+files.each do |path|
+  name = File.basename(path)
+  document = YAML.safe_load(File.read(path), aliases: false)
+  abort "#{name}: YAML root" unless document.is_a?(Hash)
+  abort "#{name}: exact top permissions" unless
+    document["permissions"] == expected_permissions.fetch(name)
+  jobs = document["jobs"]
+  abort "#{name}: jobs map" unless jobs.is_a?(Hash) && !jobs.empty?
+  jobs.each do |job_name, job|
+    abort "#{name}: #{job_name} job map" unless job.is_a?(Hash)
+    abort "#{name}: #{job_name} job-level permissions forbidden" if
+      job.key?("permissions")
+  end
+  if name == "release.yml"
+    abort "release.yml: exact release job" unless jobs.keys == ["release"]
+    abort "release.yml: release guard" unless jobs.fetch("release")["if"] == release_guard
+  else
+    abort "#{name}: misplaced release guard" if
+      jobs.values.any? { |job| job["if"] == release_guard }
+  end
+end
+RUBY
 go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
 sg_neutral_pattern="$(printf '%s|%s|%s|%s|%s|%s|%s' \
   'put''in' 'khuy''lo' 'ukr''ain' 'russ''ia' 'bela''rus' 'cri''mea' 'don''bas')"

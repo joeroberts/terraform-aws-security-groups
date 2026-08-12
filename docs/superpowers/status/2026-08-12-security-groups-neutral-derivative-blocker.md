@@ -1,13 +1,13 @@
 # Security Groups Neutral Derivative — Blocker Resolved
 
-Status: resolved by authorization amendment on 2026-08-12; source import has
-not started.
+Status: authorization blocker resolved on 2026-08-12; plan review round 2 is
+pending independent approval; source import has not started.
 
-Review fix round 1 of 5 is incorporated. It closes the remaining executable
-plan gaps for self-contained mutation target resolution, pre-first-generator
-HCL baselining, exact per-document source mapping, numbered PR creation/readback,
-explicit IAM cross-repository journaling, and exact workflow action/permission
-verification.
+The original authorization blocker is resolved. Review fix round 2 of 5 is
+being incorporated for immediate post-first-apply HCL path parity and
+structural workflow permissions/release-guard verification. These review gaps
+are not claimed closed until this plan/status fix is committed, normally pushed,
+synchronized, and independently reviewed. Source execution remains paused.
 
 - Branch: `neutral/v6.0.0-neutral.1`
 - Approved upstream: `terraform-aws-modules/terraform-aws-security-group`, tag
