@@ -1,3 +1,4 @@
+# Modified by joeroberts/terraform-aws-security-groups on 2026-08-12; see UPSTREAM.md.
 name: Release
 
 on:
@@ -12,6 +13,9 @@ on:
       - '**/*.tf'
       - '.github/workflows/release.yml'
 
+permissions:
+  contents: read
+
 jobs:
   release:
     name: Release
@@ -20,13 +24,13 @@ jobs:
     if: github.repository_owner == 'terraform-aws-modules'
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
           fetch-depth: 0
 
       - name: Set correct Node.js version
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: 24
 
@@ -38,7 +42,7 @@ jobs:
             conventional-changelog-conventionalcommits@9.1.0
 
       - name: Release
-        uses: cycjimmy/semantic-release-action@v5
+        uses: cycjimmy/semantic-release-action@ba330626c4750c19d8299de843f05c7aa5574f62 # v5 branch; tag v5.0.2
         with:
           semantic_version: 25.0.0
         env:
