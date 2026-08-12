@@ -367,10 +367,12 @@ namesakes.
 ```bash
 set -euo pipefail
 sg_expected_sha='58d8e895915f5573767081142d063b7caf7a2b47'
-sg_retained_root="/private/tmp/terraform-aws-security-group-v6.0.0-$sg_expected_sha/task1-$(git rev-parse HEAD)"
+sg_task1_execution_head='170b13777641d61c650fc76cda2b2e47a4adcb19'
+sg_retained_root="/private/tmp/terraform-aws-security-group-v6.0.0-$sg_expected_sha/task1-$sg_task1_execution_head"
 sg_verified_clone="$sg_retained_root/verified-upstream"
 sg_import_root="$sg_retained_root/import"
 sg_markdown_notice='<!-- Modified by joeroberts/terraform-aws-security-groups on 2026-08-12; see UPSTREAM.md. -->'
+sg_hcl_notice='# Modified by joeroberts/terraform-aws-security-groups on 2026-08-12; see UPSTREAM.md.'
 {
   printf '%s\n' "$sg_markdown_notice"
   sed '5d;130d;158,162d' "$sg_import_root/pristine/README.md"
@@ -378,6 +380,13 @@ sg_markdown_notice='<!-- Modified by joeroberts/terraform-aws-security-groups on
 cmp "$sg_import_root/expected/README-precommit.md" \
   "$sg_import_root/source/README.md"
 cmp "$sg_import_root/expected/README-precommit.md" README.md
+{
+  printf '%s\n' "$sg_hcl_notice"
+  sed '140,144d' "$sg_import_root/pristine/variables.tf"
+} > "$sg_import_root/expected/variables-precommit.tf"
+cmp "$sg_import_root/expected/variables-precommit.tf" \
+  "$sg_import_root/source/variables.tf"
+cmp "$sg_import_root/expected/variables-precommit.tf" variables.tf
 terraform fmt -check -recursive
 git add --all -- . \
   ':(top,exclude)docs/superpowers/plans/2026-08-12-security-groups-neutral-derivative.md' \
@@ -399,8 +408,10 @@ test -s "$sg_import_root/expected/staged-provenance"
 git diff --cached --name-only -- README.md \
   > "$sg_import_root/expected/staged-root-readme"
 test -s "$sg_import_root/expected/staged-root-readme"
-git diff --cached --check -- . ':(top,exclude)README.md'
+git diff --cached --check -- . \
+  ':(top,exclude)README.md' ':(top,exclude)variables.tf'
 git -c core.whitespace=-blank-at-eof diff --cached --check -- README.md
+git -c core.whitespace=-blank-at-eof diff --cached --check -- variables.tf
 git commit -m "feat: import neutral security group module v6.0.0"
 git push -u origin neutral/v6.0.0-neutral.1
 git fetch origin neutral/v6.0.0-neutral.1
@@ -410,11 +421,15 @@ test "$(git rev-parse HEAD)" = \
 
 Expected: intended root import/provenance paths are staged before whitespace
 gating, so untracked imported files cannot escape the check. Default cached
-whitespace checks apply to every non-root-README path. The README-only cached
-check disables only `blank-at-eof`, and is safe because the exact expected and
-target README bytes were compared earlier in this same fail-closed fence. No
-dynamic `git diff --no-index --check` producer controls the exception. The
-neutral import is committed and normally pushed as one synchronized milestone.
+whitespace checks apply to every path except root `README.md` and root
+`variables.tf`. Their path-specific cached checks disable only `blank-at-eof`;
+trailing whitespace and every other configured diagnostic still fail. Each
+exception is safe only because its exact expected/source/target byte comparisons
+passed earlier in this same fail-closed fence. The authorized variables
+transform preserves pristine line 139 as a terminal blank; it does not delete
+an extra upstream line. No dynamic `git diff --no-index --check` producer
+controls either exception. The neutral import is committed and normally pushed
+as one synchronized milestone.
 
 ---
 
