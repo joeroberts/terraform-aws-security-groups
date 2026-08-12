@@ -1,3 +1,4 @@
+<!-- Modified by joeroberts/terraform-aws-security-groups on 2026-08-12; see UPSTREAM.md. -->
 # AWS NTP Security Group Terraform Module
 
 Terraform module which creates a pre-configured AWS security group for NTP.
@@ -6,8 +7,7 @@ Terraform module which creates a pre-configured AWS security group for NTP.
 
 ```hcl
 module "ntp_security_group" {
-  source  = "terraform-aws-modules/security-group/aws//modules/ntp"
-  version = "~> 6.0"
+  source = "git::ssh://git@github.com/joeroberts/terraform-aws-security-groups.git//modules/ntp?ref=v6.0.0-neutral.1"
 
   name        = "ntp"
   description = "Security group for ntp"
@@ -83,4 +83,4 @@ No resources.
 
 ## License
 
-Apache 2 Licensed. See [LICENSE](https://github.com/terraform-aws-modules/terraform-aws-security-group/tree/master/LICENSE) for full details.
+Apache 2 Licensed. See [LICENSE](../../LICENSE) for full details.

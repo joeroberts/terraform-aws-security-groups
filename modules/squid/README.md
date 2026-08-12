@@ -1,3 +1,4 @@
+<!-- Modified by joeroberts/terraform-aws-security-groups on 2026-08-12; see UPSTREAM.md. -->
 # AWS Squid Security Group Terraform Module
 
 Terraform module which creates a pre-configured AWS security group for Squid.
@@ -6,8 +7,7 @@ Terraform module which creates a pre-configured AWS security group for Squid.
 
 ```hcl
 module "squid_security_group" {
-  source  = "terraform-aws-modules/security-group/aws//modules/squid"
-  version = "~> 6.0"
+  source = "git::ssh://git@github.com/joeroberts/terraform-aws-security-groups.git//modules/squid?ref=v6.0.0-neutral.1"
 
   name        = "squid"
   description = "Security group for squid"
@@ -83,4 +83,4 @@ No resources.
 
 ## License
 
-Apache 2 Licensed. See [LICENSE](https://github.com/terraform-aws-modules/terraform-aws-security-group/tree/master/LICENSE) for full details.
+Apache 2 Licensed. See [LICENSE](../../LICENSE) for full details.

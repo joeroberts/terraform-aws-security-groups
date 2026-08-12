@@ -1,3 +1,4 @@
+<!-- Modified by joeroberts/terraform-aws-security-groups on 2026-08-12; see UPSTREAM.md. -->
 # AWS WinRM Security Group Terraform Module
 
 Terraform module which creates a pre-configured AWS security group for WinRM.
@@ -6,8 +7,7 @@ Terraform module which creates a pre-configured AWS security group for WinRM.
 
 ```hcl
 module "winrm_security_group" {
-  source  = "terraform-aws-modules/security-group/aws//modules/winrm"
-  version = "~> 6.0"
+  source = "git::ssh://git@github.com/joeroberts/terraform-aws-security-groups.git//modules/winrm?ref=v6.0.0-neutral.1"
 
   name        = "winrm"
   description = "Security group for winrm"
@@ -84,4 +84,4 @@ No resources.
 
 ## License
 
-Apache 2 Licensed. See [LICENSE](https://github.com/terraform-aws-modules/terraform-aws-security-group/tree/master/LICENSE) for full details.
+Apache 2 Licensed. See [LICENSE](../../LICENSE) for full details.

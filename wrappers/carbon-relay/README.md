@@ -1,3 +1,4 @@
+<!-- Modified by joeroberts/terraform-aws-security-groups on 2026-08-12; see UPSTREAM.md. -->
 # Wrapper for module: `modules/carbon-relay`
 
 The configuration in this directory contains an implementation of a single module wrapper pattern, which allows managing several copies of a module in places where using the native Terraform 0.13+ `for_each` feature is not feasible (e.g., with Terragrunt).
@@ -12,9 +13,9 @@ This wrapper does not implement any extra functionality.
 
 ```hcl
 terraform {
-  source = "tfr:///terraform-aws-modules/security-group/aws//wrappers/carbon-relay"
+  source = "git::ssh://git@github.com/joeroberts/terraform-aws-security-groups.git//wrappers/carbon-relay?ref=v6.0.0-neutral.1"
   # Alternative source:
-  # source = "git::git@github.com:terraform-aws-modules/terraform-aws-security-group.git//wrappers/carbon-relay?ref=master"
+  # source = "git::ssh://git@github.com/joeroberts/terraform-aws-security-groups.git//wrappers/carbon-relay?ref=v6.0.0-neutral.1"
 }
 
 inputs = {
@@ -42,7 +43,7 @@ inputs = {
 
 ```hcl
 module "wrapper" {
-  source = "terraform-aws-modules/security-group/aws//wrappers/carbon-relay"
+  source = "git::ssh://git@github.com/joeroberts/terraform-aws-security-groups.git//wrappers/carbon-relay?ref=v6.0.0-neutral.1"
 
   defaults = { # Default values
     create = true
@@ -70,9 +71,9 @@ module "wrapper" {
 
 ```hcl
 terraform {
-  source = "tfr:///terraform-aws-modules/security-group/aws//wrappers/carbon-relay"
+  source = "git::ssh://git@github.com/joeroberts/terraform-aws-security-groups.git//wrappers/carbon-relay?ref=v6.0.0-neutral.1"
   # Alternative source:
-  # source = "git::git@github.com:terraform-aws-modules/terraform-aws-security-group.git//wrappers/carbon-relay?ref=master"
+  # source = "git::ssh://git@github.com/joeroberts/terraform-aws-security-groups.git//wrappers/carbon-relay?ref=v6.0.0-neutral.1"
 }
 
 inputs = {

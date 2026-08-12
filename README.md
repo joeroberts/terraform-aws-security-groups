@@ -3,6 +3,9 @@
 
 Terraform module which creates [EC2 security group within VPC](http://docs.aws.amazon.com/AmazonVPC/latest/UserGuide/VPC_SecurityGroups.html) on AWS.
 
+This repository is a clean-history derivative of [terraform-aws-modules/terraform-aws-security-group](https://github.com/terraform-aws-modules/terraform-aws-security-group). See [UPSTREAM.md](UPSTREAM.md) for the imported release, provenance, and intentional differences.
+
+Consumer examples pin the reserved derivative release tag `v6.0.0-neutral.1`. Use that exact tag for reproducible Git sources; it identifies this derivative rather than an upstream Registry release.
 
 ## Usage
 
@@ -10,7 +13,7 @@ Terraform module which creates [EC2 security group within VPC](http://docs.aws.a
 
 ```hcl
 module "security_group" {
-  source = "terraform-aws-modules/security-group/aws"
+  source = "git::ssh://git@github.com/joeroberts/terraform-aws-security-groups.git?ref=v6.0.0-neutral.1"
 
   name        = "example"
   description = "Example security group"
@@ -49,7 +52,7 @@ Each preset submodule under `modules/` ships a curated set of ingress rules for 
 
 ```hcl
 module "postgresql_security_group" {
-  source = "terraform-aws-modules/security-group/aws//modules/postgresql"
+  source = "git::ssh://git@github.com/joeroberts/terraform-aws-security-groups.git//modules/postgresql?ref=v6.0.0-neutral.1"
 
   name        = "postgresql"
   description = "PostgreSQL access"
@@ -64,7 +67,7 @@ module "postgresql_security_group" {
 
 ## Examples
 
-- [Complete](https://github.com/terraform-aws-modules/terraform-aws-security-group/tree/master/examples/complete) - Comprehensive example demonstrating the full module surface
+- [Complete](https://github.com/joeroberts/terraform-aws-security-groups/tree/v6.0.0-neutral.1/examples/complete) - Comprehensive example demonstrating the full module surface
 
 ## Notes
 
@@ -150,7 +153,8 @@ No modules.
 
 Module is maintained by [Anton Babenko](https://github.com/antonbabenko) with help from [these awesome contributors](https://github.com/terraform-aws-modules/terraform-aws-security-group/graphs/contributors).
 
+This derivative is maintained by [joeroberts](https://github.com/joeroberts). Maintenance of the derivative does not imply authorship of unchanged upstream work.
+
 ## License
 
-Apache 2 Licensed. See [LICENSE](https://github.com/terraform-aws-modules/terraform-aws-security-group/tree/master/LICENSE) for full details.
-
+Apache 2 Licensed. See [LICENSE](LICENSE) for full details.
