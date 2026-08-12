@@ -4,7 +4,7 @@
 
 **Goal:** Create a clean-history derivative of upstream AWS Security Group module v6.0.0, remove the nontechnical input and root creation gate, keep all 53 generated presets synchronized, and open a verified PR for reserved tag v6.0.0-neutral.1.
 
-**Architecture:** Sanitize the exact singular-named upstream repository in temporary storage, then import it into the plural-named target. Change only the root `local.create` expression, deleted input, wrapper forwarding, documentation, generator-owned consumer sources, and inherited workflows; verify all 110 Terraform roots and re-run the catalog generator before PR creation.
+**Architecture:** Sanitize the exact singular-named upstream repository in temporary storage, then import it into the plural-named target. Change only the root `local.create` expression, deleted input, wrapper forwarding, documentation, generator-owned consumer sources, inherited workflows, and two narrowly bounded pre-commit adaptations; verify all 110 Terraform roots, re-run the catalog generator, exercise wrapper-generation feasibility without overwriting derivative artifacts, and execute the repository's actual all-files pre-commit path before PR creation.
 
 **Tech Stack:** Terraform 1.15.7, Terraform >= 1.5.7, AWS provider >= 6.29, local provider >= 2.5, HCL templates, terraform-docs 0.24.0, TFLint 0.62.0, actionlint 1.7.7, Git, GitHub CLI
 
@@ -17,6 +17,10 @@
 - Do not create or push the reserved tag before review and merge.
 - Preserve Apache 2.0, upstream attribution, provider metadata, 53-entry catalog, generated HCL, and unrelated behavior.
 - Every changed upstream-derived file begins with `Modified by joeroberts/terraform-aws-security-groups on 2026-08-12; see UPSTREAM.md.` in its comment syntax.
+- The final authorized upstream-derived notice-bearing delta is exactly 120
+  paths: the five Task 1 files, `generate/templates/README.md.tftpl`, 53 module
+  READMEs, 54 wrapper READMEs, six workflow files, and
+  `.pre-commit-config.yaml`.
 - Root resource creation must depend only on `var.create`; remove the nontechnical variable and wrapper forwarding.
 - The authorized Task 1 upstream-derived delta set is exactly `README.md`,
   `CHANGELOG.md`, `main.tf`, `variables.tf`, and `wrappers/main.tf`. Delete the
@@ -38,6 +42,23 @@
   directory, the exact root `.superpowers/` scratch tree, and the two exact
   root planning/status documents without hiding nested namesakes.
 - Keep `.superpowers/` ignored and untracked.
+- In `.pre-commit-config.yaml`, preserve the inherited YAML structure exactly
+  except for the exact dated first-line YAML notice, the sole exact argument
+  `--args=--dry-run` on `terraform_wrapper_module_for_each`, and
+  `exclude: ^variables\.tf$` on `end-of-file-fixer` only. Do not skip, remove,
+  or exclude the wrapper hook: its dry run must use hcledit to parse HCL and
+  exercise generation feasibility for the root plus 53 modules while writing
+  no tracked byte. Every other hook must still receive root `variables.tf`,
+  and `end-of-file-fixer` must still receive every other eligible path. The
+  exact 216 wrapper HCL files, 270 wrapper documentation sources, and 54
+  wrapper notices are governed by the Task 2/Task 4 derivative parity gates,
+  not by the inherited hook's hard-coded upstream write template. The
+  six-workflow/19-action scope remains exactly `.github/workflows/*`;
+  `.pre-commit-config.yaml` is configuration, not a seventh workflow.
+- Before PR creation, require the exact parsed pre-commit structure, a
+  deliberate hook-behavior fixture, and
+  `pre-commit run --all-files --show-diff-on-failure` to pass without changing
+  any tracked byte or leaving the worktree dirty.
 - Push each milestone without force. If blocked, persist and push `docs/neutralization/BLOCKER.md`, open a draft PR when coherent, update the IAM campaign journal, and proceed to RDS.
 
 ## File Map
@@ -50,6 +71,10 @@
 - Regenerate after template change: all 53 `modules/*/README.md`.
 - Modify mechanically after copy: root `README.md` and all 54 `wrappers/**/README.md` files — derivative identity, sources, notices.
 - Modify: six `.github/workflows/*` files — notices, action pins, permissions.
+- Modify after whole-branch review: `.pre-commit-config.yaml` — exact dated YAML
+  notice; the sole exact `--args=--dry-run` argument on
+  `terraform_wrapper_module_for_each`; and the root-anchored
+  `^variables\.tf$` exclusion on `end-of-file-fixer` only.
 - Create: `UPSTREAM.md`.
 - Preserve unchanged: `generate/catalog.tf`, other templates, all 53 preset-module HCL outputs, and unrelated external VPC example source.
 
@@ -891,6 +916,8 @@ git push
 
 **Files:**
 - Verify: all tracked files, generated artifacts, and complete target history
+- Verify: the exact authorized `.pre-commit-config.yaml` transform and actual
+  all-files pre-commit execution
 - Do not create: tracked `.terraform`, state, lock, cache, or test artifacts
 
 **Interfaces:**
@@ -1045,6 +1072,8 @@ case "$sg_tf_count" in
   ''|*[!0-9]*) exit 1 ;;
 esac
 test "$sg_tf_count" = "441"
+sg_wrapper_tf_count=$(find wrappers -type f -name '*.tf' | wc -l | tr -d '[:space:]')
+test "$sg_wrapper_tf_count" = "216"
 sg_compared_tf_count=0
 while IFS= read -r sg_tf_file; do
   test -n "$sg_tf_file"
@@ -1082,14 +1111,34 @@ test "$(wc -l < "$sg_create_matches" | tr -d '[:space:]')" = "1"
   sed '194d' "$sg_pristine_root/CHANGELOG.md"
 } > "$sg_compare_root/expected-CHANGELOG.md"
 cmp "$sg_compare_root/expected-CHANGELOG.md" CHANGELOG.md
+sg_yaml_notice='# Modified by joeroberts/terraform-aws-security-groups on 2026-08-12; see UPSTREAM.md.'
+{
+  printf '%s\n' "$sg_yaml_notice"
+  awk '
+    { print }
+    $0 == "      - id: terraform_wrapper_module_for_each" {
+      print "        args:"
+      print "          - '\''--args=--dry-run'\''"
+    }
+    $0 == "      - id: end-of-file-fixer" {
+      print "        exclude: ^variables\\.tf$"
+    }
+  ' "$sg_pristine_root/.pre-commit-config.yaml"
+} > "$sg_compare_root/expected-pre-commit-config.yaml"
+cmp "$sg_compare_root/expected-pre-commit-config.yaml" \
+  .pre-commit-config.yaml
 ```
 
 Expected: every unchanged Terraform file is byte-identical, each of the three
 approved HCL files matches its deterministic transform, the direct creation
 expression occurs once, and `CHANGELOG.md` remains the exact authorized
-bullet-deletion-plus-notice transform. This fence creates and verifies its own
-fresh clone and archives its committed tree; it does not consume Task 1 shell
-state or import upstream Git history.
+bullet-deletion-plus-notice transform. `.pre-commit-config.yaml` is byte-exactly
+the pristine upstream file with only its dated first-line YAML notice, the one
+wrapper-hook dry-run argument, and the one root-anchored EOF-fixer exclusion
+inserted. The exact 216 wrapper HCL files are included in the 441-file parity
+walk. This fence creates and verifies its own fresh clone and archives its
+committed tree; it does not consume Task 1 shell state or import upstream Git
+history.
 
 - [ ] **Step 5: Notices, workflows, neutrality/history, and remote synchronization**
 
@@ -1097,16 +1146,26 @@ state or import upstream Git history.
 set -euo pipefail
 sg_final_gate=$(mktemp -d /private/tmp/terraform-aws-security-groups-final.XXXXXX)
 sg_notice='Modified by joeroberts/terraform-aws-security-groups on 2026-08-12; see UPSTREAM.md.'
+sg_notice_count=0
 for sg_notice_file in main.tf variables.tf wrappers/main.tf README.md CHANGELOG.md \
   generate/templates/README.md.tftpl modules/*/README.md wrappers/README.md \
-  wrappers/*/README.md .github/workflows/*; do
+  wrappers/*/README.md .github/workflows/* .pre-commit-config.yaml; do
   case "$sg_notice_file" in
-    *.tf|.github/workflows/*) sg_expected_notice="# $sg_notice" ;;
+    *.tf|.github/workflows/*|.pre-commit-config.yaml) sg_expected_notice="# $sg_notice" ;;
     *.md|*.tftpl) sg_expected_notice="<!-- $sg_notice -->" ;;
     *) exit 1 ;;
   esac
   test "$(head -n 1 "$sg_notice_file")" = "$sg_expected_notice"
+  sg_notice_count=$((sg_notice_count + 1))
 done
+test "$sg_notice_count" = "120"
+sg_wrapper_notice_count=0
+for sg_wrapper_notice_file in wrappers/README.md wrappers/*/README.md; do
+  test "$(head -n 1 "$sg_wrapper_notice_file")" = \
+    "<!-- $sg_notice -->"
+  sg_wrapper_notice_count=$((sg_wrapper_notice_count + 1))
+done
+test "$sg_wrapper_notice_count" = "54"
 if rg -n 'source\s*=\s*"(terraform-aws-modules/security-group/aws|tfr:///terraform-aws-modules/security-group/aws)' \
   README.md modules wrappers -g README.md; then
   exit 1
@@ -1114,6 +1173,67 @@ else
   sg_rg_status=$?
   test "$sg_rg_status" = "1"
 fi
+ruby - <<'RUBY'
+root_source = "git::ssh://git@github.com/joeroberts/terraform-aws-security-groups.git?ref=v6.0.0-neutral.1"
+root_postgresql_source = "git::ssh://git@github.com/joeroberts/terraform-aws-security-groups.git//modules/postgresql?ref=v6.0.0-neutral.1"
+documents = ["README.md"] + Dir["modules/*/README.md"].sort +
+  Dir["wrappers/**/README.md"].sort
+abort "source document count" unless documents.length == 108
+
+source_count = 0
+active_count = 0
+commented_count = 0
+wrapper_source_count = 0
+wrapper_active_count = 0
+wrapper_commented_count = 0
+documents.each do |path|
+  lines = File.readlines(path).select { |line| line.match?(/source[[:space:]]*=/) }
+  values = lines.map do |line|
+    value = line[/source[[:space:]]*=[[:space:]]*"([^"]+)"/, 1]
+    abort "#{path}: malformed source line" unless value
+    active_count += 1 if line.match?(/^[[:space:]]+source[[:space:]]*=/)
+    commented_count += 1 if
+      line.match?(/^[[:space:]]*#[[:space:]]+source[[:space:]]*=/)
+    value
+  end
+  source_count += values.length
+  case path
+  when "README.md"
+    abort "root source count/value" unless
+      values.sort == [root_source, root_postgresql_source].sort
+  when %r{\Amodules/([^/]+)/README\.md\z}
+    expected = "git::ssh://git@github.com/joeroberts/terraform-aws-security-groups.git//modules/#{$1}?ref=v6.0.0-neutral.1"
+    abort "#{path}: module source" unless values == [expected]
+  when %r{\Awrappers(?:/[^/]+)?/README\.md\z}
+    wrapper_path = path.delete_suffix("/README.md")
+    expected = "git::ssh://git@github.com/joeroberts/terraform-aws-security-groups.git//#{wrapper_path}?ref=v6.0.0-neutral.1"
+    abort "#{path}: wrapper source count/value" unless
+      values.length == 5 && values.all? { |value| value == expected }
+    path_lines = lines
+    path_active_count = path_lines.count do |line|
+      line.match?(/^[[:space:]]+source[[:space:]]*=/)
+    end
+    path_commented_count = path_lines.count do |line|
+      line.match?(/^[[:space:]]*#[[:space:]]+source[[:space:]]*=/)
+    end
+    abort "#{path}: wrapper active/commented split" unless
+      path_active_count == 3 && path_commented_count == 2
+    wrapper_source_count += values.length
+    wrapper_active_count += path_active_count
+    wrapper_commented_count += path_commented_count
+  else
+    abort "unexpected source document #{path}"
+  end
+end
+abort "source total" unless source_count == 325
+abort "source active/commented totals" unless
+  active_count == 217 && commented_count == 108
+abort "wrapper source total" unless wrapper_source_count == 270
+abort "wrapper source active/commented totals" unless
+  wrapper_active_count == 162 && wrapper_commented_count == 108
+puts "SOURCE_PASS files=#{documents.length} entries=#{source_count} active=#{active_count} commented=#{commented_count}"
+puts "WRAPPER_SOURCE_PASS files=54 entries=#{wrapper_source_count} active=#{wrapper_active_count} commented=#{wrapper_commented_count}"
+RUBY
 if rg -n -P 'uses:\s+[^\s#]+@(?![0-9a-f]{40}(?:\s|$))' .github/workflows; then
   exit 1
 else
@@ -1222,6 +1342,166 @@ files.each do |path|
 end
 RUBY
 go run github.com/rhysd/actionlint/cmd/actionlint@v1.7.7
+ruby - <<'RUBY'
+require "yaml"
+
+path = ".pre-commit-config.yaml"
+notice = "# Modified by joeroberts/terraform-aws-security-groups on 2026-08-12; see UPSTREAM.md."
+abort "pre-commit notice" unless File.readlines(path).first&.chomp == notice
+expected = {
+  "repos" => [
+    {
+      "repo" => "https://github.com/antonbabenko/pre-commit-terraform",
+      "rev" => "v1.106.0",
+      "hooks" => [
+        { "id" => "terraform_fmt" },
+        {
+          "id" => "terraform_wrapper_module_for_each",
+          "args" => ["--args=--dry-run"],
+        },
+        { "id" => "terraform_docs", "args" => ["--args=--lockfile=false"] },
+        {
+          "id" => "terraform_tflint",
+          "args" => %w[
+            --args=--only=terraform_deprecated_interpolation
+            --args=--only=terraform_deprecated_index
+            --args=--only=terraform_unused_declarations
+            --args=--only=terraform_comment_syntax
+            --args=--only=terraform_documented_outputs
+            --args=--only=terraform_documented_variables
+            --args=--only=terraform_typed_variables
+            --args=--only=terraform_module_pinned_source
+            --args=--only=terraform_naming_convention
+            --args=--only=terraform_required_version
+            --args=--only=terraform_required_providers
+            --args=--only=terraform_standard_module_structure
+            --args=--only=terraform_workspace_remote
+          ],
+        },
+        {
+          "id" => "terraform_validate",
+          "args" => ["--hook-config=--retry-once-with-cleanup=true"],
+        },
+      ],
+    },
+    {
+      "repo" => "https://github.com/pre-commit/pre-commit-hooks",
+      "rev" => "v6.0.0",
+      "hooks" => [
+        { "id" => "check-merge-conflict" },
+        { "id" => "end-of-file-fixer", "exclude" => '^variables\\.tf$' },
+        { "id" => "trailing-whitespace" },
+        { "id" => "mixed-line-ending", "args" => ["--fix=lf"] },
+      ],
+    },
+  ],
+}
+document = YAML.safe_load(File.read(path), aliases: false)
+abort "pre-commit exact YAML structure" unless document == expected
+exclusions = document.fetch("repos").flat_map { |repo| repo.fetch("hooks") }.
+  select { |hook| hook.key?("exclude") }.
+  map { |hook| [hook.fetch("id"), hook.fetch("exclude")] }
+abort "pre-commit exclusion scope" unless
+  exclusions == [["end-of-file-fixer", '^variables\\.tf$']]
+hooks = document.fetch("repos").flat_map { |repo| repo.fetch("hooks") }
+wrapper_hooks = hooks.select do |hook|
+  hook["id"] == "terraform_wrapper_module_for_each"
+end
+abort "pre-commit exact active wrapper hook" unless wrapper_hooks == [{
+  "id" => "terraform_wrapper_module_for_each",
+  "args" => ["--args=--dry-run"],
+}]
+dry_run_owners = hooks.select do |hook|
+  Array(hook["args"]).include?("--args=--dry-run")
+end.map { |hook| hook.fetch("id") }
+abort "pre-commit dry-run argument owner" unless
+  dry_run_owners == ["terraform_wrapper_module_for_each"]
+without_dry_run = Marshal.load(Marshal.dump(document))
+without_dry_run.fetch("repos").first.fetch("hooks").fetch(1).delete("args")
+abort "missing wrapper dry-run must fail exact structure" if
+  without_dry_run == expected
+wrong_hook = Marshal.load(Marshal.dump(document))
+wrong_hooks = wrong_hook.fetch("repos").first.fetch("hooks")
+wrong_hooks.fetch(1).delete("args")
+wrong_hooks.fetch(0)["args"] = ["--args=--dry-run"]
+abort "wrong dry-run owner must fail exact structure" if wrong_hook == expected
+RUBY
+sg_precommit_bin=$(command -v pre-commit)
+test -n "$sg_precommit_bin"
+sg_terraform_docs_version=$(terraform-docs --version)
+printf '%s\n' "$sg_terraform_docs_version" | \
+  rg -q '^terraform-docs version v0\.24\.0 '
+test "$(hcledit version)" = "0.2.17"
+sg_precommit_fixture="$sg_final_gate/pre-commit-fixture"
+mkdir "$sg_precommit_fixture"
+cp .pre-commit-config.yaml "$sg_precommit_fixture/.pre-commit-config.yaml"
+git -C "$sg_precommit_fixture" init --quiet
+ruby - "$sg_precommit_fixture" <<'RUBY'
+root = ARGV.fetch(0)
+File.binwrite(File.join(root, "variables.tf"), "variable \"fixture\" {  \n}\n\n")
+File.binwrite(File.join(root, "checked.txt"), "checked\n\n")
+RUBY
+git -C "$sg_precommit_fixture" add .pre-commit-config.yaml variables.tf checked.txt
+shasum -a 256 "$sg_precommit_fixture/variables.tf" \
+  > "$sg_precommit_fixture/variables-before"
+if (
+  cd "$sg_precommit_fixture"
+  "$sg_precommit_bin" run end-of-file-fixer \
+    --files variables.tf checked.txt --show-diff-on-failure
+); then
+  exit 1
+else
+  sg_precommit_status=$?
+  test "$sg_precommit_status" = "1"
+fi
+shasum -a 256 -c "$sg_precommit_fixture/variables-before"
+ruby - "$sg_precommit_fixture/checked.txt" <<'RUBY'
+path = ARGV.fetch(0)
+abort "EOF fixture was not checked" unless File.binread(path) == "checked\n"
+RUBY
+if (
+  cd "$sg_precommit_fixture"
+  "$sg_precommit_bin" run trailing-whitespace \
+    --files variables.tf --show-diff-on-failure
+); then
+  exit 1
+else
+  sg_precommit_status=$?
+  test "$sg_precommit_status" = "1"
+fi
+if shasum -a 256 -c "$sg_precommit_fixture/variables-before"; then
+  exit 1
+fi
+sg_precommit_tracked_files="$sg_final_gate/pre-commit-tracked-files"
+git ls-files | sort > "$sg_precommit_tracked_files"
+test -s "$sg_precommit_tracked_files"
+sg_precommit_before="$sg_final_gate/pre-commit-before"
+sg_precommit_after_wrapper="$sg_final_gate/pre-commit-after-wrapper"
+sg_precommit_after_all="$sg_final_gate/pre-commit-after-all"
+while IFS= read -r sg_precommit_path; do
+  test -n "$sg_precommit_path"
+  shasum -a 256 "$sg_precommit_path"
+done < "$sg_precommit_tracked_files" > "$sg_precommit_before"
+sg_wrapper_dry_run_log="$sg_final_gate/wrapper-dry-run.log"
+"$sg_precommit_bin" run terraform_wrapper_module_for_each --all-files \
+  --show-diff-on-failure --verbose > "$sg_wrapper_dry_run_log" 2>&1
+test "$(rg -c 'There is nothing to save\. Remove --dry-run flag to write files\.' \
+  "$sg_wrapper_dry_run_log")" = "54"
+while IFS= read -r sg_precommit_path; do
+  test -n "$sg_precommit_path"
+  shasum -a 256 "$sg_precommit_path"
+done < "$sg_precommit_tracked_files" > "$sg_precommit_after_wrapper"
+cmp "$sg_precommit_before" "$sg_precommit_after_wrapper"
+git diff --exit-code
+test -z "$(git status --porcelain)"
+"$sg_precommit_bin" run --all-files --show-diff-on-failure
+while IFS= read -r sg_precommit_path; do
+  test -n "$sg_precommit_path"
+  shasum -a 256 "$sg_precommit_path"
+done < "$sg_precommit_tracked_files" > "$sg_precommit_after_all"
+cmp "$sg_precommit_before" "$sg_precommit_after_all"
+git diff --exit-code
+test -z "$(git status --porcelain)"
 sg_neutral_pattern="$(printf '%s|%s|%s|%s|%s|%s|%s' \
   'put''in' 'khuy''lo' 'ukr''ain' 'russ''ia' 'bela''rus' 'cri''mea' 'don''bas')"
 sg_scan_worklist="$sg_final_gate/scan-files"
@@ -1274,7 +1554,8 @@ test ! -s "$sg_final_gate/reserved-tag"
 ### Task 5: Independent Review, PR, and Campaign Status
 
 **Files:**
-- Modify only for findings: Tasks 1-3 files
+- Modify only for findings: the authorized Tasks 1-3 files,
+  `.pre-commit-config.yaml`, and the tracked plan/status records
 - Modify cross-repository: IAM `docs/neutralization/CAMPAIGN-STATUS.md`
 - External write: GitHub PR
 
@@ -1286,8 +1567,11 @@ test ! -s "$sg_final_gate/reserved-tag"
 
 Use `superpowers:requesting-code-review`. Require checks of the singular-to-plural
 provenance mapping, three-file HCL delta, 53-entry generator, 108 consumer docs,
-110 validations, Apache notices, action pins, history neutrality, and tag deferral.
-Fix, push, rerun Task 4, and obtain a fresh re-review until no load-bearing finding remains.
+325 exact source occurrences, 110 validations, 120 Apache notices, action pins,
+the exact EOF-fixer-only exclusion, the active 54-input wrapper dry run, actual
+all-files pre-commit execution with no mutation, history neutrality, and tag
+deferral. Fix, push, rerun Task 4, and obtain a fresh re-review until no
+load-bearing finding remains.
 
 - [ ] **Step 2: Create and read back the PR**
 
@@ -1324,7 +1608,7 @@ IFS= read -r sg_preexisting_count < "$sg_pr_gate/preexisting-count"
 test "$sg_preexisting_count" = "0"
 gh pr create --repo "$sg_repo" \
   --base main --head neutral/v6.0.0-neutral.1 \
-  --title "feat: add neutral security group module v6.0.0" \
+  --title "feat: Add neutral security group module v6.0.0" \
   --body-file "$sg_pr_body" > "$sg_pr_gate/create-output"
 rg -o 'https://github\.com/joeroberts/terraform-aws-security-groups/pull/[0-9]+' \
   "$sg_pr_gate/create-output" > "$sg_pr_gate/created-url"
